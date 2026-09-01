@@ -7,3 +7,21 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Project
+
+Hertz Lab is a Brazilian e-commerce storefront for audio/electronics — a portfolio project built to production-app standards.
+
+# Runtime
+
+Use Bun.
+
+# Language
+
+All code, comments, and commit messages are in English.  
+User-facing copy is in Brazilian Portuguese.
+
+# Conventions
+
+- Prefer the @ alias for imports (see docs/CONVENTIONS.md)
+- Components contain only render logic (see docs/CONVENTIONS.md)
