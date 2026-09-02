@@ -1,25 +1,7 @@
 import { boolean, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-
-const id = () =>
-  text("id")
-    .primaryKey()
-    .$defaultFn(() => Bun.randomUUIDv7());
-
-const timestamps = () => ({
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+import { id, timestamps } from "@/db/schema/columns";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
-
-// ============================================================================
-// AUTH TABLES AND USER
-// ============================================================================
 
 export const user = pgTable("user", {
   id: id(),
