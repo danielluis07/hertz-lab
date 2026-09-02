@@ -23,6 +23,11 @@ export const env = createEnv({
   clientPrefix: "NEXT_PUBLIC_",
   client: {
     NEXT_PUBLIC_APP_URL: z.url(),
+    /**
+     * Public base URL for S3 objects: the CDN distribution, or the raw bucket
+     * endpoint. `s3KeyToUrl` joins object keys onto it.
+     */
+    NEXT_PUBLIC_ASSET_URL: z.url(),
   },
   /*
    * Specify what values should be validated by your schemas above.
@@ -35,5 +40,6 @@ export const env = createEnv({
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_ASSET_URL: process.env.NEXT_PUBLIC_ASSET_URL,
   },
 });
