@@ -31,7 +31,7 @@ case is ambiguous, promote on the second caller, never on the first.
 | `lib/utils/*` | Pure, isomorphic helpers. One module per concept. |
 | `lib/constants.ts` | Values true everywhere (`LOCALE`, `CURRENCY`). |
 | `hooks/*` | Shared client hooks. |
-| `modules/<name>/` | Everything that knows a rule. |
+| `modules/<name>/` | Everything that knows a rule. Anatomy and public surface: `docs/MODULES.md`. |
 
 Formatting, validation and normalisation of one value share one file:
 `lib/utils/document.ts` exports `formatDocument`, `isValidDocument`,
