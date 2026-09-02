@@ -55,9 +55,12 @@ export const ConfirmProvider = ({
   }, []);
 
   const closeConfirm = useCallback(() => {
+    // Settles the promise for callers that dismiss without choosing. A no-op
+    // after handleConfirm, which already resolved it.
+    confirmState?.resolve(false);
     setConfirmState(null);
     setIsPending(false);
-  }, []);
+  }, [confirmState]);
 
   const setPending = useCallback((value: boolean) => {
     setIsPending(value);
