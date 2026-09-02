@@ -9,7 +9,11 @@ export const env = createEnv({
    */
   server: {
     DATABASE_URL: z.url(),
-    BETTER_AUTH_SECRET: z.string(),
+    BETTER_AUTH_SECRET: z.string().min(1),
+    AWS_REGION: z.string().min(1),
+    AWS_ACCESS_KEY_ID: z.string().min(1),
+    AWS_SECRET_ACCESS_KEY: z.string().min(1),
+    AWS_BUCKET_NAME: z.string().min(1),
   },
   /*
    * Environment variables available on the client (and server).

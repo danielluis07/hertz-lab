@@ -25,3 +25,4 @@ User-facing copy is in Brazilian Portuguese.
 
 - Prefer the @ alias for imports (see docs/CONVENTIONS.md)
 - Components contain only render logic (see docs/CONVENTIONS.md)
+- Project stack (see docs/STACK.md)
