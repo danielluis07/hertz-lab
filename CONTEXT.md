@@ -17,6 +17,10 @@ phone). *There is no Customer without a User* — Hertz Lab has no guest checkou
 **Admin** — a User with the `admin` role. Manages the Catalog, moderates
 Reviews, and fulfils Orders.
 
+**Document** — the Brazilian fiscal identifier a Customer must supply: a CPF
+for a person, a CNPJ for a company. One Document belongs to one User; it is
+what makes a User a Customer, together with a phone.
+
 ## Catalog
 
 **Product** — the marketing entity a shopper reads about: name, description,
@@ -35,6 +39,11 @@ a parent Category.
 ("Impedância", "32 Ω"). Descriptive text for the shopper, not a filter facet.
 
 ## Buying
+
+**Money** — every amount in Hertz Lab is Brazilian reais expressed in *cents*,
+a whole number. There is no other currency and no fractional cent. A Coupon's
+percentage is the one exception to "a number is cents": a percentage is
+*basis points*, where 1000 means 10%.
 
 **Cart** — the single, permanent collection of Variants a User intends to buy.
 One Cart per User; it is emptied, never deleted. A Cart reflects *current*
