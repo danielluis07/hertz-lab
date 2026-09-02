@@ -9,19 +9,6 @@ import {
 } from "@/components/ui/pagination";
 import { buildPageHref, buildPageRange } from "@/lib/utils/pagination";
 
-type PaginationNavProps = {
-  pathname: string;
-  searchParams: URLSearchParams;
-  /**
-   * The page parameter's name. ADR-0005: `pagina` on public routes, `page` on
-   * admin ones. Taking it as a prop is what keeps this component shared.
-   */
-  paramKey: string;
-  page: number;
-  totalPages: number;
-  siblings?: number;
-};
-
 /**
  * The assembled pagination nav. `components/ui/pagination.tsx` renders parts
  * and computes nothing; this puts them together so no page has to.
@@ -36,7 +23,18 @@ export function PaginationNav({
   page,
   totalPages,
   siblings,
-}: PaginationNavProps) {
+}: {
+  pathname: string;
+  searchParams: URLSearchParams;
+  /**
+   * The page parameter's name. ADR-0005: `pagina` on public routes, `page` on
+   * admin ones. Taking it as a prop is what keeps this component shared.
+   */
+  paramKey: string;
+  page: number;
+  totalPages: number;
+  siblings?: number;
+}) {
   if (totalPages <= 1) return null;
 
   // `buildPageRange` clamps internally, so an out-of-range `page` — a shopper
@@ -67,8 +65,7 @@ export function PaginationNav({
             <PaginationItem key={item}>
               <PaginationLink
                 isActive={item === currentPage}
-                href={hrefFor(item)}
-              >
+                href={hrefFor(item)}>
                 {item}
               </PaginationLink>
             </PaginationItem>
