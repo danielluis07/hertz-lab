@@ -22,5 +22,16 @@ export function absoluteUrl(path: string): string {
  */
 export function s3KeyToUrl(key: string): string {
   const base = env.NEXT_PUBLIC_ASSET_URL.replace(/\/$/, "");
-  return `${base}/${key.replace(/^\//, "")}`;
+
+  // Each segment is encoded, the separators are not. S3 keys are arbitrary
+  // strings and admin uploads carry their filenames, so a key like
+  // `produtos/fone bluetooth #1.jpg` is ordinary — and unescaped, its `#`
+  // would end the path and start a fragment.
+  const path = key
+    .replace(/^\//, "")
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+
+  return `${base}/${path}`;
 }

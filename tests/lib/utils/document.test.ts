@@ -66,3 +66,21 @@ describe("isValidDocument", () => {
     expect(isValidDocument("12345678900")).toBe(false);
   });
 });
+
+describe("documentSchema character check", () => {
+  test("rejects letters that would normalise into a valid document", () => {
+    // Stripping non-digits first would turn this into 12345678909, a real CPF.
+    expect(documentSchema.safeParse("abc123.456.789-09").success).toBe(false);
+    expect(documentSchema.safeParse("123.456.789-09x").success).toBe(false);
+  });
+
+  test("still accepts the punctuation a Document is written with", () => {
+    expect(documentSchema.parse("123.456.789-09")).toBe(VALID_CPF);
+    expect(documentSchema.parse("11.222.333/0001-81")).toBe(VALID_CNPJ);
+    expect(documentSchema.parse(" 12345678909 ")).toBe(VALID_CPF);
+  });
+
+  test("rejects an empty string", () => {
+    expect(documentSchema.safeParse("").success).toBe(false);
+  });
+});

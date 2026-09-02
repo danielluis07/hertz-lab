@@ -39,16 +39,21 @@ export function PaginationNav({
 }: PaginationNavProps) {
   if (totalPages <= 1) return null;
 
-  const items = buildPageRange({ page, totalPages, siblings });
+  // `buildPageRange` clamps internally, so an out-of-range `page` — a shopper
+  // editing ?pagina= by hand — would otherwise leave the nav with no active
+  // link and a previous/next pointing off the end.
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+
+  const items = buildPageRange({ page: currentPage, totalPages, siblings });
   const hrefFor = (target: number) =>
     buildPageHref({ pathname, searchParams, key: paramKey, page: target });
 
   return (
     <Pagination>
       <PaginationContent>
-        {page > 1 && (
+        {currentPage > 1 && (
           <PaginationItem>
-            <PaginationPrevious href={hrefFor(page - 1)} />
+            <PaginationPrevious href={hrefFor(currentPage - 1)} />
           </PaginationItem>
         )}
 
@@ -61,7 +66,7 @@ export function PaginationNav({
           ) : (
             <PaginationItem key={item}>
               <PaginationLink
-                isActive={item === page}
+                isActive={item === currentPage}
                 href={hrefFor(item)}
               >
                 {item}
@@ -70,9 +75,9 @@ export function PaginationNav({
           ),
         )}
 
-        {page < totalPages && (
+        {currentPage < totalPages && (
           <PaginationItem>
-            <PaginationNext href={hrefFor(page + 1)} />
+            <PaginationNext href={hrefFor(currentPage + 1)} />
           </PaginationItem>
         )}
       </PaginationContent>

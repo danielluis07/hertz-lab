@@ -111,3 +111,41 @@ describe("buildPageHref", () => {
     expect(params.get("pagina")).toBe("2");
   });
 });
+
+describe("buildPageRange normalisation", () => {
+  const isWholePage = (item: number | "ellipsis") =>
+    item === "ellipsis" || Number.isInteger(item);
+
+  test("truncates a fractional sibling count", () => {
+    expect(buildPageRange({ page: 10, totalPages: 20, siblings: 0.5 })).toEqual(
+      buildPageRange({ page: 10, totalPages: 20, siblings: 0 }),
+    );
+    expect(
+      buildPageRange({ page: 10, totalPages: 20, siblings: 1.9 }).every(
+        isWholePage,
+      ),
+    ).toBe(true);
+  });
+
+  test("treats a negative sibling count as zero", () => {
+    expect(buildPageRange({ page: 10, totalPages: 20, siblings: -3 })).toEqual(
+      buildPageRange({ page: 10, totalPages: 20, siblings: 0 }),
+    );
+  });
+
+  test("truncates a fractional page", () => {
+    expect(buildPageRange({ page: 9.5, totalPages: 20 })).toEqual(
+      buildPageRange({ page: 9, totalPages: 20 }),
+    );
+  });
+
+  test("never emits a fractional page number", () => {
+    for (const page of [1.5, 9.5, 19.999, -2.5]) {
+      expect(
+        buildPageRange({ page, totalPages: 20, siblings: 1.5 }).every(
+          isWholePage,
+        ),
+      ).toBe(true);
+    }
+  });
+});

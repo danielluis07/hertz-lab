@@ -1,6 +1,8 @@
-// Two deliberate changes from the shadcn source: the copy is pt-BR, and
+// Three deliberate changes from the shadcn source: the copy is pt-BR,
 // PaginationLink renders a next/link instead of a bare anchor so paging is a
-// client-side transition. `shadcn add pagination` will overwrite both.
+// client-side transition, and PaginationEllipsis carries aria-hidden on its
+// icon rather than on the wrapper, which had been hiding its own screen-reader
+// label. `shadcn add pagination` will overwrite all three.
 import * as React from "react"
 import Link from "next/link"
 
@@ -108,7 +110,6 @@ function PaginationEllipsis({
 }: React.ComponentProps<"span">) {
   return (
     <span
-      aria-hidden
       data-slot="pagination-ellipsis"
       className={cn(
         "flex size-8 items-center justify-center [&_svg:not([class*='size-'])]:size-4",
@@ -116,8 +117,7 @@ function PaginationEllipsis({
       )}
       {...props}
     >
-      <MoreHorizontalIcon
-      />
+      <MoreHorizontalIcon aria-hidden />
       <span className="sr-only">Mais páginas</span>
     </span>
   )

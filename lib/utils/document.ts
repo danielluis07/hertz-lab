@@ -91,8 +91,21 @@ export function normalizeDocument(value: string): string {
   return digitsOf(value);
 }
 
-/** Accepts punctuated or bare input; the parsed output is always digits only. */
+/** Digits and the punctuation a Document is written with, nothing else. */
+const DOCUMENT_CHARACTERS = /^[\d.\-/\s]+$/;
+
+/**
+ * Accepts punctuated or bare input; the parsed output is always digits only.
+ *
+ * The character check has to come first. `normalizeDocument` strips everything
+ * that is not a digit, so without it `"abc123.456.789-09"` would normalise to a
+ * perfectly valid CPF and be stored as one.
+ */
 export const documentSchema = z
   .string()
+  .refine((value) => DOCUMENT_CHARACTERS.test(value), {
+    message: "CPF ou CNPJ inválido",
+    abort: true,
+  })
   .transform(normalizeDocument)
   .refine(isValidDocument, { message: "CPF ou CNPJ inválido" });

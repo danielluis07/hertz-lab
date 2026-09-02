@@ -61,6 +61,13 @@ export function useQueryParam(
   const resetKeysToken = resetKeys.join(",");
 
   useEffect(() => {
+    // State already agrees with the URL, so there is nothing to push. This
+    // guard is what stops a stale debounce from undoing the back button: the
+    // render above adopts the new `paramValue` into `value` immediately, but
+    // `committed` still holds the pre-navigation string until the timer
+    // settles, and writing that would navigate the shopper back forwards.
+    if (value === paramValue) return;
+
     if (committed === paramValue) return;
 
     const params = new URLSearchParams(searchParams.toString());
@@ -82,6 +89,7 @@ export function useQueryParam(
       });
     });
   }, [
+    value,
     committed,
     paramValue,
     key,

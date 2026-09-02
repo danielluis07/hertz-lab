@@ -73,3 +73,8 @@ Tests live under `tests/`, mirroring the path of the file under test —
 `lib/utils/format.ts` is tested by `tests/lib/utils/format.test.ts`. Mirroring
 rather than colocating keeps `bun run build` from ever seeing a test file, and
 gives `tests/modules/<name>/` an obvious home when the modules land.
+
+`tests/setup.ts` runs before every test file (`[test] preload` in
+`bunfig.toml`) and sets the whole environment, because `lib/env.ts` validates
+at import time. It overwrites rather than defers to `.env`: tests assert on
+those exact values, so a local `.env` must never change whether they pass.

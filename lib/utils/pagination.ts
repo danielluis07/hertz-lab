@@ -27,14 +27,18 @@ export function buildPageRange({
 }): PageRangeItem[] {
   if (totalPages <= 0) return [];
 
-  const current = Math.min(Math.max(page, 1), totalPages);
+  // Both are truncated before use: a fractional page or sibling count would
+  // propagate into the range and produce links to `?pagina=9.5`. `page` is
+  // parsed off a URL a shopper can edit, so this is not hypothetical.
+  const current = Math.min(Math.max(Math.trunc(page) || 1, 1), totalPages);
+  const span = Math.max(0, Math.trunc(siblings) || 0);
 
   // first + last + current + siblings on both sides + both ellipses
-  const maxSlots = siblings * 2 + 5;
+  const maxSlots = span * 2 + 5;
   if (totalPages <= maxSlots) return range(1, totalPages);
 
-  const left = Math.max(current - siblings, 1);
-  const right = Math.min(current + siblings, totalPages);
+  const left = Math.max(current - span, 1);
+  const right = Math.min(current + span, totalPages);
 
   // An ellipsis is only worth it when it hides at least two pages: standing in
   // for a single page costs more width than the page number it replaces.
@@ -42,7 +46,7 @@ export function buildPageRange({
   const hasLeftGap = left - 2 >= 2;
   const hasRightGap = totalPages - 1 - right >= 2;
 
-  const edgeRunLength = siblings * 2 + 3;
+  const edgeRunLength = span * 2 + 3;
 
   if (!hasLeftGap && !hasRightGap) return range(1, totalPages);
 
