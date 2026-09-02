@@ -4,13 +4,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
 
-type UseQueryParamOptions = {
-  /** Wait this long after the last change before touching the URL. */
-  debounceMs?: number;
-  /** Parameters to drop whenever this one changes — typically the page. */
-  resetKeys?: string[];
-};
-
 /**
  * Read and write one query parameter as component state.
  *
@@ -25,7 +18,15 @@ type UseQueryParamOptions = {
  */
 export function useQueryParam(
   key: string,
-  { debounceMs = 0, resetKeys = [] }: UseQueryParamOptions = {},
+  {
+    debounceMs = 0,
+    resetKeys = [],
+  }: {
+    /** Wait this long after the last change before touching the URL. */
+    debounceMs?: number;
+    /** Parameters to drop whenever this one changes — typically the page. */
+    resetKeys?: string[];
+  } = {},
 ) {
   const router = useRouter();
   const pathname = usePathname();
