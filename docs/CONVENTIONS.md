@@ -47,8 +47,11 @@ formatters into every bundle that only wanted a class name.
 Every shared file states which side of the client/server line it lives on:
 
 - `hooks/*` begin with `"use client"`.
-- Modules holding secrets begin with `import "server-only"` (`lib/auth-utils.ts`,
-  `lib/s3.ts`).
+- Server-only code begins with `import "server-only"` — whether it holds a
+  secret (`lib/auth-utils.ts`, `lib/s3.ts`) or simply must never reach a
+  bundle. Every file under `modules/<name>/server/` carries it, and a
+  `no-restricted-imports` rule guards that folder besides; the two fail at
+  different moments on purpose (see `docs/MODULES.md`).
 - `lib/utils/*` are isomorphic and mark nothing.
 
 ## Formatters

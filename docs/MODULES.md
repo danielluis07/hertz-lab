@@ -18,7 +18,11 @@ modules/products/
   <concept>.ts          # pure rules, named by concept: pricing.ts, stock.ts
   components/           # used by both audiences
   hooks/                # used by both audiences
-  server/               # the module's server half
+  server/               # the module's server half — `import "server-only"`
+    router.ts           # composes the module's procedures
+    admin.ts            # admin procedures, where both audiences exist
+    shop.ts             # shop procedures, likewise
+    queries.ts          # only once a second procedure needs the same query
   admin/
     components/
     hooks/
@@ -58,8 +62,7 @@ not exist.
 that mirrors the global layer's folder names inside itself has just built
 thirteen junk drawers, which is the failure ADR-0007 was written to avoid.
 
-`server/` holds the module's server half; what is inside it is specified
-separately.
+`server/` holds the module's server half, specified in its own section below.
 
 ## The public surface
 
@@ -120,6 +123,80 @@ validator for the value it describes.
 
 Schemas only one audience speaks live in that audience's folder. An admin list's
 filter schema is an admin concern; a Product is not.
+
+## The server half
+
+`server/` is the only part of a module the browser never sees. Every file in it
+begins with `import "server-only"`.
+
+### Shape
+
+**`server/router.ts` is the only file that always exists.** It is what
+`trpc/routers/_app.ts` composes, under the module's own name — `products`,
+never `productsAdmin` — so the router key and the module are the same word.
+
+**The audience axis continues into `server/`.** Where a module has both
+audiences, its procedures split the same way its components do:
+
+```
+modules/products/server/
+  router.ts     # createTRPCRouter({ admin: adminRouter, shop: shopRouter })
+  admin.ts
+  shop.ts
+```
+
+giving `trpc.products.admin.list` and `trpc.products.shop.list`. This is rule 1
+again: an admin list is paginated and includes `draft` and `archived`, a shop
+list shows only `active` — different procedures, not one procedure with a flag.
+Nesting rather than naming them apart also gives invalidation a hierarchy for
+free, since TanStack Query matches key prefixes: `trpc.products.queryFilter()`
+reaches both audiences, `trpc.products.admin.queryFilter()` reaches one.
+
+The six single-audience modules — `checkout`, `cart`, `wishlist`, `payments`,
+`shipping-methods`, `auth` — get a flat `server/router.ts` and no nesting, the
+same six that get no audience folder.
+
+`server/queries.ts` appears only when a **second** procedure needs a query the
+first one wrote (ADR-0010).
+
+### Procedures
+
+The vocabulary in `trpc/init.ts` — `baseProcedure`, `protectedProcedure`,
+`adminProcedure` — is complete. It covers public, any signed-in User, and Admin,
+which is every axis `CONTEXT.md` has.
+
+A module **may** define its own middleware — a `productProcedure` that takes an
+`id`, loads the row and throws `NOT_FOUND` so five procedures need not each
+repeat it. It lives in `server/`, is never exported past it, and is only ever
+for a module-owned concern. Anything cross-cutting belongs in `trpc/init.ts`.
+
+`createTRPCContext` stays empty and `db` is imported directly; see ADR-0010.
+
+### Naming
+
+`list`, `byId`, `create`, `update` are the defaults, **but where the domain has
+its own verb, the domain verb wins.** `products.admin.archive`,
+`reviews.admin.moderate`, `orders.admin.fulfil` — not `update` carrying a status
+field. A Product's `archived` status and a Review's moderation are facts in
+`CONTEXT.md`, and a procedure named after the domain says which fact it changes.
+
+Avoid `delete` as a procedure name: it is a reserved word, and in this domain it
+is usually a lie. Use `remove` where a row genuinely goes away.
+
+### Rules do not live here
+
+**A procedure holds no rules; it orchestrates.** It validates its input, runs the
+query, applies the rule, and returns.
+
+The test: **if something can be a pure function of already-fetched data, it must
+be one** — and it lives at the module root in its `<concept>.ts`, where both
+audiences can import it and `bun test` reaches it without a database.
+`orderTotal(order)` is that; it is never inlined into a procedure.
+
+A predicate that exists only as a `where` clause is not a pure rule and stays in
+the query. The consequence to accept is that `server/` exports no rules, so a
+rule needed by both a procedure and a form lives at the root and both import it
+from there.
 
 ## Promotion
 
