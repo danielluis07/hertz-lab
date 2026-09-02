@@ -1,10 +1,11 @@
-import { Button } from "@/components/ui/button";
+import type { Metadata } from "next";
 
-export default function Home() {
-  return (
-    <div>
-      <p>hello world!</p>
-      <Button>Click Me</Button>
-    </div>
-  );
-}
+export const metadata: Metadata = {
+  title: "Áudio e eletrônicos",
+};
+
+const HomePage = () => {
+  return <h1>Hertz Lab</h1>;
+};
+
+export default HomePage;
