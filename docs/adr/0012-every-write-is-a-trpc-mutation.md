@@ -79,3 +79,7 @@ The second cost falls on image upload: presigning is more moving parts than
 handing `FormData` to a server function, and it introduces the orphaned-object
 problem (a file lands in S3 before the row referencing it exists, or instead of
 it). That problem is real and is not solved here.
+
+**Resolved by ADR-0018.** Upload is eager, the key is a form value, and orphans
+are tolerated deliberately rather than swept — this repo has no scheduled runner
+to sweep with.

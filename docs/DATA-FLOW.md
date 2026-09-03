@@ -591,7 +591,7 @@ undo from the same screen**.
 
 | Write | Confirm |
 | --- | --- |
-| `remove` — a Variant, a Specification, an image, an empty Category | yes |
+| `remove` — a Variant, a Specification, an empty Category | yes |
 | Admin logout | yes |
 | `orders.admin.cancel` — irreversible, and ADR-0003 snapshots make it final | yes |
 | `products.admin.archive` — reversible by filtering to archived | no |
@@ -601,6 +601,10 @@ undo from the same screen**.
 `docs/MODULES.md` notes that `delete` is usually a lie in this domain, so the
 `remove` row is rarer than it looks: most "deletion" in admin is archiving, and
 archiving does not confirm.
+
+**An Image is not on that list**, though an earlier draft of this table put it
+there. Removing an Image is a *field edit* on a form, not a write of its own —
+see "Images" below and ADR-0018.
 
 **The provider takes the action.** It owns pending state and closing, including
 on rejection:
@@ -702,6 +706,62 @@ A procedure's pt-BR `message` wins over the code map, except for
 that is the code an *uncaught* error arrives as, and its message is an English
 leak. `adminProcedure`'s `"Acesso restrito ao administrador"` is the pattern, not
 an anomaly.
+
+## Images
+
+An Image is the one thing on an admin form that does not travel through the
+mutation carrying it. The rule is ADR-0018; this is its shape at a call site.
+
+**The file goes to S3 before the row exists.** Selecting a file calls
+`trpc.products.admin.createImageUpload({ contentType, size })`, which returns
+`{ key, url }`; the browser PUTs the file to `url` and keeps `key`. The key is
+an ordinary React Hook Form value from that point on, so `create` and `update`
+see an identical images array and submit stays **one mutation** (ADR-0016).
+
+```tsx
+// The tile's own state, not the form's: only the key reaches the form.
+const { mutateAsync: createUpload } = useCreateImageUpload();
+
+const { key, url } = await createUpload({ contentType: file.type, size: file.size });
+await putWithProgress(url, file, setProgress); // XHR — see below
+append({ s3Key: key, altText: "", variantId: null });
+```
+
+**What the form sends, and what it never sends.**
+
+| Field | Client | Server |
+| --- | --- | --- |
+| `s3Key` | from `createImageUpload` | `stat`ed on write; missing, oversized or wrong-typed is refused |
+| `position` | — | derived from array index |
+| `altText` | required, pt-BR, non-empty | schema rule (ADR-0017: tested) |
+| `variantId` | **array index** on create, real id on update | index resolved inside the transaction |
+
+The index is the trap. On create the Variants have no ids yet, so a tile cannot
+hold a `variantId`; it holds the position of its Variant in the form's variants
+array, and the write resolves it after the inserts. Empty means what the
+nullable column means — the shot belongs to the Product, not to one Variant.
+
+**Progress is determinate, and that forces XHR.** `fetch` reports nothing
+between "sent" and "done"; only `XMLHttpRequest` exposes `upload.onprogress`. A
+tile shows a `URL.createObjectURL` preview immediately with a bar over it.
+**Submit is disabled while any upload is in flight**, with pt-BR text saying why.
+
+> **The global error net stops here.** ADR-0013 covers every *mutation*, and the
+> S3 PUT is not one — `MutationCache.onError` never sees it. `createImageUpload`
+> is covered; the upload it authorises is not. A failed tile renders its own
+> error with a per-file **Tentar novamente** and raises **no toast**: the
+> recovery is item-scoped, and a second home for pt-BR copy is the thing
+> ADR-0013 exists to prevent.
+
+**Removal.** Removing a tile whose key was never persisted deletes the S3 object
+immediately — that is the one orphan we can see, so we take it. Removing a
+persisted one is just an array element leaving the form; the `update` that
+writes the shorter array deletes the object as part of the write. Neither goes
+through `ConfirmProvider`.
+
+**Orphans are tolerated.** An abandoned form leaves an unreferenced object in
+the bucket. There is no sweep, because there is no scheduled runner to run one —
+ADR-0018 records the trigger that would reopen it.
 
 ## Absence, again
 

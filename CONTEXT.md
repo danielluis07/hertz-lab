@@ -35,6 +35,10 @@ buy. Carts and Orders always reference a Variant, never a Product.
 **Category** — a node in the browse tree. Categories nest: a Category may have
 a parent Category.
 
+**Image** — a photograph of a Product, stored in S3 and referenced by key. An
+Image may belong to one Variant, or to the Product as a whole. Images are
+ordered, and that order is what the shop renders.
+
 **Specification** — one labelled row of a Product's technical sheet
 ("Impedância", "32 Ω"). Descriptive text for the shopper, not a filter facet.
 

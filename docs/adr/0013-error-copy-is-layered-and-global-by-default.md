@@ -99,3 +99,10 @@ A second cost: three tiers means the answer to "where does this message come
 from" is never in one file. The mitigation is that the tiers are ordered by
 *specificity* rather than by module, so the search is always the same three
 places in the same order.
+
+**The net's one boundary, found by ADR-0018.** "No write fails silently" means
+no *mutation* fails silently. The presigned S3 PUT is a browser→bucket request
+that never enters the `MutationCache`, so the upload form owns its own failures
+— per-file, in place, without a toast. That is the only write-shaped act in the
+admin surface this ADR does not cover, and it is covered on purpose elsewhere
+rather than left to the net.
