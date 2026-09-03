@@ -44,3 +44,14 @@ A plain view solves nothing — it is the join, renamed. A materialised view
 moves the staleness problem to a refresh schedule and makes per-Product
 freshness impossible, which is worse for exactly the case that matters: a
 shopper who has just posted a review and wants to see it counted.
+
+**Where the routine lives — resolved by ADR-0020.**
+`modules/products/server/rating.ts` exports
+`recalculateProductRating(tx, productId)`, which rebuilds both columns from the
+approved Reviews inside a caller-supplied transaction.
+`modules/reviews/server/` calls it as part of the moderation write, which is
+what makes the recalculation atomic as this ADR requires. The trigger belongs to
+`reviews`; the rule belongs to `products`; nothing else in the app may write
+those two columns. Because it takes a transaction rather than opening one, a
+future repair script calls the same function — which is the from-scratch rebuild
+asked for above.

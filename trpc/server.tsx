@@ -17,11 +17,11 @@ export const trpc = createTRPCOptionsProxy({
   queryClient: getQueryClient,
 });
 
-// Server caller for data consumed ONLY by server components. It is detached
-// from the query client on purpose: anything fetched through `getQueryClient`
-// gets dehydrated by <HydrateClient> and shipped to the browser, even when no
-// client component reads it. Wrap callers of this in React.cache (see
-// lib/request-cache.ts) to keep per-request deduplication.
+// Server caller for data NO client query exists for — nothing calls
+// `useSuspenseQuery` on it, so there is nothing to hydrate. Detached from the
+// query client on purpose: anything fetched through `getQueryClient` is
+// dehydrated by <HydrateClient> and shipped to the browser whether or not a
+// client component reads it. See docs/DATA-FLOW.md and ADR-0011.
 export const caller = appRouter.createCaller(createTRPCContext);
 
 export function HydrateClient(props: { children: React.ReactNode }) {
@@ -32,6 +32,15 @@ export function HydrateClient(props: { children: React.ReactNode }) {
     </HydrationBoundary>
   );
 }
+
+const noop = () => {};
+
+/**
+ * Warm the cache for a query a client component will read, without waiting for
+ * it. The page streams; the client's `useSuspenseQuery` picks the result up
+ * from the dehydrated cache. Errors are swallowed here on purpose — they
+ * surface on the client, where a boundary can render them.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function prefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
   queryOptions: T,
@@ -39,8 +48,22 @@ export function prefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
   const queryClient = getQueryClient();
   if (queryOptions.queryKey[1]?.type === "infinite") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    void queryClient.prefetchInfiniteQuery(queryOptions as any);
+    void queryClient.infiniteQuery(queryOptions as any).catch(noop);
   } else {
-    void queryClient.prefetchQuery(queryOptions);
+    void queryClient.query(queryOptions).catch(noop);
   }
+}
+
+/**
+ * Same fetch as `prefetch`, but awaited and returned: use it when the server
+ * component itself needs the value *and* a client component reads the same
+ * query. One request serves both — the cache is populated for hydration and
+ * the data is handed back. Throws, so `notFound()` and friends stay in the
+ * page.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function load<T extends ReturnType<TRPCQueryOptions<any>>>(
+  queryOptions: T,
+) {
+  return getQueryClient().query(queryOptions);
 }

@@ -24,7 +24,10 @@ what makes a User a Customer, together with a phone.
 ## Catalog
 
 **Product** — the marketing entity a shopper reads about: name, description,
-Brand, Category. A Product is never bought directly.
+Brand, Category. A Product is never bought directly. A Product is **draft**
+(being written, invisible to shoppers), **active** (on sale) or **archived**
+(withdrawn from sale, kept because Orders still refer to it). *Publishing* and
+*archiving* are the Admin's two acts on that fact; a Product is never deleted.
 
 **Variant** — the sellable unit: its own SKU, price, stock, and dimensions.
 Every Product has at least one Variant, even when there is only one thing to
@@ -34,6 +37,10 @@ buy. Carts and Orders always reference a Variant, never a Product.
 
 **Category** — a node in the browse tree. Categories nest: a Category may have
 a parent Category.
+
+**Image** — a photograph of a Product, stored in S3 and referenced by key. An
+Image may belong to one Variant, or to the Product as a whole. Images are
+ordered, and that order is what the shop renders.
 
 **Specification** — one labelled row of a Product's technical sheet
 ("Impedância", "32 Ω"). Descriptive text for the shopper, not a filter facet.

@@ -31,7 +31,8 @@ case is ambiguous, promote on the second caller, never on the first.
 | `lib/utils/*` | Pure, isomorphic helpers. One module per concept. |
 | `lib/constants.ts` | Values true everywhere (`LOCALE`, `CURRENCY`). |
 | `hooks/*` | Shared client hooks. |
-| `modules/<name>/` | Everything that knows a rule. |
+| `modules/<name>/` | Everything that knows a rule. Anatomy and public surface: `docs/MODULES.md`. |
+| `components/<group>/` | One route group's frame — its sidebar, header and nav. Authored global, may know rules, imported only by that group's layout (ADR-0015). |
 
 Formatting, validation and normalisation of one value share one file:
 `lib/utils/document.ts` exports `formatDocument`, `isValidDocument`,
@@ -47,8 +48,11 @@ formatters into every bundle that only wanted a class name.
 Every shared file states which side of the client/server line it lives on:
 
 - `hooks/*` begin with `"use client"`.
-- Modules holding secrets begin with `import "server-only"` (`lib/auth-utils.ts`,
-  `lib/s3.ts`).
+- Server-only code begins with `import "server-only"` — whether it holds a
+  secret (`lib/auth-utils.ts`, `lib/s3.ts`) or simply must never reach a
+  bundle. Every file under `modules/<name>/server/` carries it, and a
+  `no-restricted-imports` rule guards that folder besides; the two fail at
+  different moments on purpose (see `docs/MODULES.md`).
 - `lib/utils/*` are isomorphic and mark nothing.
 
 ## Formatters
@@ -66,13 +70,16 @@ renders `next/link` — and leave a comment at the top saying what was changed.
 
 ## Tests
 
-Pure utilities are tested with `bun test`. No runner to install: it ships with
-Bun.
+Code that knows a rule is tested with `bun test`. No runner to install: it
+ships with Bun. Code that knows only a shape is not — which is why there are no
+tests for `server/` or for components. ADR-0017 has the argument;
+`docs/MODULES.md` has what it means inside a module.
 
 Tests live under `tests/`, mirroring the path of the file under test —
-`lib/utils/format.ts` is tested by `tests/lib/utils/format.test.ts`. Mirroring
-rather than colocating keeps `bun run build` from ever seeing a test file, and
-gives `tests/modules/<name>/` an obvious home when the modules land.
+`lib/utils/format.ts` is tested by `tests/lib/utils/format.test.ts`, and
+`modules/products/admin/schemas.ts` by
+`tests/modules/products/admin/schemas.test.ts`. Mirroring rather than
+colocating keeps `bun run build` from ever seeing a test file.
 
 `tests/setup.ts` runs before every test file (`[test] preload` in
 `bunfig.toml`) and sets the whole environment, because `lib/env.ts` validates

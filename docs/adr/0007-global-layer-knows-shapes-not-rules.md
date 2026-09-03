@@ -73,3 +73,8 @@ is the rule working, not a missed extraction.
 The rule is also why `lib/utils/index.ts` re-exports only `cn`: a barrel over
 the whole directory would drag `env` and the `Intl` instances into every bundle
 that wanted a class name. Everything else is imported from its own module.
+
+This rule's scope is `lib/` and `hooks/`. `components/` is governed by the
+promotion gate in `docs/MODULES.md` and, for a route group's frame, by ADR-0015 —
+which is why `components/admin/` may know which modules exist without breaking
+anything written above.
