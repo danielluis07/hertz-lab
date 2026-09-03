@@ -216,3 +216,10 @@ a module's component wearing a global's clothes.
 The same rule runs one level down: a component used by both `admin/` and
 `shop/` moves up to the module root; one used by a single audience stays put,
 however tempting the symmetry.
+
+**A route group's frame is the exception, and it is not a promotion.**
+`components/admin/` and `components/shop/` are authored global from birth: they
+were never inside a module, so nothing promoted them, and they are permitted to
+know rules because the frame *is* the rule. The gate above still governs
+everything that arrives by promotion. See ADR-0015 for the two tenants of
+`components/` and the test that separates them.

@@ -32,6 +32,7 @@ case is ambiguous, promote on the second caller, never on the first.
 | `lib/constants.ts` | Values true everywhere (`LOCALE`, `CURRENCY`). |
 | `hooks/*` | Shared client hooks. |
 | `modules/<name>/` | Everything that knows a rule. Anatomy and public surface: `docs/MODULES.md`. |
+| `components/<group>/` | One route group's frame — its sidebar, header and nav. Authored global, may know rules, imported only by that group's layout (ADR-0015). |
 
 Formatting, validation and normalisation of one value share one file:
 `lib/utils/document.ts` exports `formatDocument`, `isValidDocument`,
