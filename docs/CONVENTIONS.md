@@ -94,9 +94,11 @@ only client component on a list page, and why sort headers are anchors.
 
 Files under `components/ui/` are generated and `shadcn add` will overwrite them.
 Do not edit one to refactor it; `hooks/use-mobile.ts` is left duplicating
-`hooks/use-media-query.ts` for that reason. Do edit one to fix user-facing copy
-or a genuine defect — `components/ui/pagination.tsx` is translated to pt-BR and
-renders `next/link` — and leave a comment at the top saying what was changed.
+`hooks/use-media-query.ts` for that reason. Do edit one to fix user-facing copy, a
+genuine defect, or an import the project does not have — `pagination.tsx` is
+translated to pt-BR and renders `next/link`, and `sonner.tsx` drops the
+`next-themes` import it is generated with — and leave a comment at the top
+saying what was changed.
 
 ## Tests
 

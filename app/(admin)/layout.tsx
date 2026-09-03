@@ -2,6 +2,7 @@ import { AdminHeader } from "@/components/admin/admin-header";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 // No authorisation check and no data fetching here: every admin page calls
 // requireAdmin() in its own body (ADR-0006). No defaultOpen either, so the
@@ -9,6 +10,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 export default function AdminLayout({ children }: LayoutProps<"/">) {
   return (
     <ConfirmProvider>
+      <Toaster />
       <SidebarProvider>
         <AdminSidebar />
         <SidebarInset>
