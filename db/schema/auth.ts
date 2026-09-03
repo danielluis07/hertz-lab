@@ -1,4 +1,11 @@
-import { boolean, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { id, timestamps } from "@/db/schema/columns";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
@@ -31,22 +38,42 @@ export const session = pgTable("session", {
   ...timestamps(),
 });
 
-export const account = pgTable("account", {
-  id: id(),
-  accountId: text("account_id").notNull(),
-  providerId: text("provider_id").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  idToken: text("id_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at"),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-  scope: text("scope"),
-  password: text("password"),
-  ...timestamps(),
-});
+export const account = pgTable(
+  "account",
+  {
+    id: id(),
+    /**
+     * Namespaces `accountId` to the authority that issued it, so a provider's
+     * subject id can never collide with another's. Better Auth writes
+     * `"local:credential"` for an email-and-password Account and the OIDC
+     * issuer URL for a social one; the property must be spelled `issuer`
+     * because the Drizzle adapter resolves Better Auth's field names against
+     * these property keys, not against the column names.
+     *
+     * Sign in matches on it (`providerId`, `issuer` and `accountId` together),
+     * so an Account row missing it is an Account nobody can sign in to.
+     */
+    issuer: text("issuer").notNull(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    ...timestamps(),
+  },
+  // Declared unique by Better Auth's own account table: one identity per
+  // issuer, so the same subject cannot be linked twice.
+  (t) => [
+    uniqueIndex("account_issuer_account_id_unique").on(t.issuer, t.accountId),
+  ],
+);
 
 export const verification = pgTable("verification", {
   id: id(),
