@@ -18,15 +18,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils/date";
-import type { ProductRow } from "../fixtures";
+import { BRAND_OPTIONS, CATEGORY_OPTIONS, type ProductRow } from "../fixtures";
 import {
   PRODUCTS_PER_PAGE,
+  PRODUCT_STATUS_OPTIONS,
   SORT_DEFAULTS,
   type ProductListInput,
 } from "../params";
 import { buildSortHref } from "../sort";
 import { EmptyRow, SortHeader, TableShell } from "./data-table";
-import { ProductListFilters } from "./product-list-filters";
+import { FilterBar, type FilterSpec } from "./filter-bar";
+
+/**
+ * Four filters, declared. The hard surface's filter row is no harder than the
+ * easy one's — which is exactly why this half is worth sharing and the table
+ * half is not.
+ */
+const PRODUCT_FILTERS: readonly FilterSpec<ProductListInput>[] = [
+  { kind: "search", placeholder: "Buscar produtos..." },
+  { kind: "select", key: "status", label: "Status", options: PRODUCT_STATUS_OPTIONS },
+  { kind: "select", key: "categoryId", label: "Categoria", options: CATEGORY_OPTIONS },
+  { kind: "select", key: "brandId", label: "Marca", options: BRAND_OPTIONS },
+];
 
 // The same three rules as the kit config inlines. Same reason: no `modules/`
 // folder — but in real code these are `modules/products/status.ts` and
@@ -81,7 +94,7 @@ export function PrimitivesProductsList({
         </Button>
       </div>
 
-      <ProductListFilters input={input} />
+      <FilterBar filters={PRODUCT_FILTERS} input={input} />
 
       <TableShell>
         <Table>

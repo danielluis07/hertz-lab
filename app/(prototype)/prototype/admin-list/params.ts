@@ -86,3 +86,11 @@ export const PRODUCT_STATUS_OPTIONS = [
   { value: "active", label: "Ativo" },
   { value: "archived", label: "Arquivado" },
 ] as const;
+
+/** What any list's input must have. Both shapes' shared machinery leans on it. */
+export type BaseListInput = {
+  search?: string;
+  sortBy: string;
+  sortOrder: "asc" | "desc";
+  page: number;
+};

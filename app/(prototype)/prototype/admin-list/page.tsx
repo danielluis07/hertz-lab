@@ -36,7 +36,7 @@ const KIT_SHARED = [
 
 const PRIMITIVES_SHARED = [
   "primitives/data-table.tsx",
-  "primitives/filter-controls.tsx",
+  "primitives/filter-bar.tsx",
 ];
 
 const PER_SURFACE = {
@@ -45,11 +45,8 @@ const PER_SURFACE = {
     products: ["kit/products.resource.tsx"],
   },
   primitives: {
-    brands: ["primitives/brands-list.tsx", "primitives/brand-list-filters.tsx"],
-    products: [
-      "primitives/products-list.tsx",
-      "primitives/product-list-filters.tsx",
-    ],
+    brands: ["primitives/brands-list.tsx"],
+    products: ["primitives/products-list.tsx"],
   },
 } as const;
 

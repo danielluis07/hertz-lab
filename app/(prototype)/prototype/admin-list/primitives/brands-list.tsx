@@ -20,8 +20,16 @@ import { formatDate } from "@/lib/utils/date";
 import type { BrandRow } from "../fixtures";
 import { BRANDS_PER_PAGE, SORT_DEFAULTS, type BrandListInput } from "../params";
 import { buildSortHref } from "../sort";
-import { BrandListFilters } from "./brand-list-filters";
 import { EmptyRow, SortHeader, TableShell } from "./data-table";
+import { FilterBar, type FilterSpec } from "./filter-bar";
+
+/**
+ * Plain data, so it crosses the RSC boundary as a prop and the table below
+ * stays on the server. One line to add a filter.
+ */
+const BRAND_FILTERS: readonly FilterSpec<BrandListInput>[] = [
+  { kind: "search", placeholder: "Buscar marcas..." },
+];
 
 export function PrimitivesBrandsList({
   rows,
@@ -59,7 +67,7 @@ export function PrimitivesBrandsList({
         <Button render={<Link href="/admin/brands/new" />}>Nova marca</Button>
       </div>
 
-      <BrandListFilters />
+      <FilterBar filters={BRAND_FILTERS} input={input} />
 
       <TableShell>
         <Table>
