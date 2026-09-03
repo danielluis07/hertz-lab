@@ -192,6 +192,37 @@ The shop side is where a real mapping will exist, since ADR-0005 gives it
 and why `useQueryParam` and `buildPageHref` take the key as an argument rather
 than assuming either vocabulary.
 
+## What a list surface is made of
+
+All eight admin lists are the same four pieces, and ADR-0016 fixes which of
+them are shared:
+
+```tsx
+// modules/products/admin/components/product-table.tsx — a server component
+<div className="group">
+  <h1>Produtos</h1>                                    // the page's own heading
+  <FilterBar filters={PRODUCT_FILTERS} input={input} />  // shared, config-driven
+  <TableShell>
+    <Table>…</Table>                                   // markup this module owns
+  </TableShell>
+  <PaginationNav paramKey="page" … />                   // shared, already global
+</div>
+```
+
+**The filter bar is the only client component on the page.** The header row,
+every cell and the pagination are HTML, and no row data is serialized into the
+document.
+
+The dividing line is whether the declaration can be **data**. A filter spec is
+strings and option arrays, so it crosses the RSC boundary as a prop and can be
+shared. A column spec needs `cell` — a function — which cannot cross it, so a
+config-driven table would drag the whole list into the browser. That is the
+whole argument; the measurements behind it are in ADR-0016.
+
+The repetition this leaves is real: eight `<tbody>` blocks that differ only in
+their columns. It is deliberate, and the test above is the answer to anyone who
+proposes to factor it away.
+
 ## Filter controls
 
 Writing a filter to the URL is a navigation. Every filter control does it inside
@@ -199,19 +230,42 @@ a **transition**, which is what makes the list behave: the page keeps rendering
 the old URL state until the new server render arrives, so **a filter change does
 not re-suspend the table**.
 
-### One hook owns every write
+### One filter bar owns every write
 
-**No component calls `useQueryParam` or `router.replace` directly.** The module
-owns a single hook — `modules/products/admin/hooks/use-product-list-filters.ts`
-— and every control goes through it.
+**No component calls `useQueryParam` or `router.replace` directly.** One shared
+component — `components/filter-bar.tsx` — owns every filter write on every admin
+list, and the module supplies only a **spec**:
 
-The reason is a rule that would otherwise need repeating in five places:
-**every filter change drops `page`.** Filter to a smaller result set while
-`?page=7` is still in the URL and the Admin gets an empty table with no
-explanation. `useQueryParam` has `resetKeys` for this, but the discrete filters
-do not use `useQueryParam` (below), so the rule has no single home unless the
-module gives it one. This is the wrap ADR-0007 predicted when it said modules
-own their own parameter names.
+```tsx
+const PRODUCT_FILTERS: readonly FilterSpec<ProductListInput>[] = [
+  { kind: "search", placeholder: "Buscar produtos..." },
+  { kind: "select", key: "status", label: "Status", options: PRODUCT_STATUS_OPTIONS },
+  { kind: "select", key: "categoryId", label: "Categoria", options: CATEGORY_OPTIONS },
+  { kind: "select", key: "brandId", label: "Marca", options: BRAND_OPTIONS },
+];
+```
+
+The spec is **data**, which is why it can be shared at all: it crosses the
+server/client boundary as an ordinary prop, so the table beside it stays a
+server component. A *column* spec cannot — `cell` is a function — which is the
+whole of ADR-0016 in one sentence, and the reason the table is markup the module
+writes itself.
+
+`key` is typed as a key of the list input, so a filter on a parameter the
+ADR-0014 schema does not declare fails to compile.
+
+What the bar owns, once, for all eight surfaces: the debounced search, the
+optimistic value of each discrete filter, `replace` rather than `push`, the
+`data-pending` attribute, and the rule that would otherwise need repeating in
+five places — **every filter change drops `page`.** Filter to a smaller result
+set while `?page=7` is still in the URL and the Admin gets an empty table with
+no explanation.
+
+That last one is a rule, and a global component holding it is a deliberate
+exception argued in ADR-0016: it is a rule about *URL-driven lists*, the same
+class `buildPageHref` already holds when it drops `?page=1`, and not a rule
+about any module. A filter bar that knew what a Product's statuses are would
+belong to `products`; one that receives them as options does not.
 
 ### Debounced and discrete are different
 
@@ -242,10 +296,15 @@ that column's own default — is pure.
 
 So sort headers are anchors, the header row stays a server component, and the
 whole sort surface is free, shareable and middle-clickable. It needs a
-`buildSortHref`, which is **hand-written in the module**: there are no other
-callers yet, and ADR-0007's tie-breaker is promote on the second caller. The
-shape (a sort is a field plus a direction) is global-eligible when a second list
-wants it; the field list never is.
+`buildSortHref`, and this reached its second caller the moment a second list
+existed, so it lives at **`lib/utils/sort.ts`**, beside `lib/utils/pagination.ts`
+and for the same reason: it takes the field, the current sort and the default
+direction as arguments, so it knows a shape and never a rule. The field list
+never is global.
+
+`SortHeader` — the anchor plus its direction indicator — is likewise
+`components/data-table.tsx`, with `EmptyRow` and `TableShell`. None of the three
+knows a column.
 
 ### Replace or push
 

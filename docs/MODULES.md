@@ -213,6 +213,15 @@ prop precisely so that it knows no rule — ADR-0005 gives public routes `pagina
 and admin routes `page`, and a component that hard-coded either would have been
 a module's component wearing a global's clothes.
 
+Three more arrived by this gate once a second list existed, all from ADR-0016:
+`components/filter-bar.tsx` (takes its filter spec as a prop),
+`components/data-table.tsx` (`SortHeader`, `EmptyRow`, `TableShell` — none of
+which knows a column) and `lib/utils/sort.ts`. The **table** is the piece that
+did not promote: its columns are a function of the row, so it stays
+`modules/<name>/admin/components/`. The test ADR-0016 leaves behind —
+*can the declaration be data, or does it need a function?* — is the one to apply
+to anything else proposed for sharing.
+
 The same rule runs one level down: a component used by both `admin/` and
 `shop/` moves up to the module root; one used by a single audience stays put,
 however tempting the symmetry.
