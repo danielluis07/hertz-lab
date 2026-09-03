@@ -42,7 +42,13 @@ export function AdminHeader() {
       <Separator orientation="vertical" className="my-2" />
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="sm" render={<Link href="/" />}>
+        {/* nativeButton={false}: the rendered element is an anchor, and Base UI
+            keeps native button semantics only when told it has a real button. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/" />}>
           <Store data-icon="inline-start" />
           Ver loja
         </Button>
