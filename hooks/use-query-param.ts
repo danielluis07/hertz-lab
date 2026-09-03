@@ -5,12 +5,26 @@ import { useEffect, useState, useTransition } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
 
 /**
- * Read and write one query parameter as component state.
+ * Read and write one query parameter as component state, **debounced**.
+ *
+ * This is the hook for a search box, and deliberately not the general
+ * mechanism for URL state. Everything below — the `useState` mirror of the
+ * URL, and the `synced` block that re-adopts it on a back button or route
+ * change — exists for one reason: a debounced input holds keystrokes the URL
+ * does not have yet, so the two can legitimately disagree and something has to
+ * reconcile them.
+ *
+ * A discrete filter has no uncommitted state. One click, one navigation, and
+ * nothing to debounce. Use `useOptimistic(current)` plus a `router.replace` in
+ * a transition instead: React reverts the optimistic value when the new server
+ * prop arrives, which is the same reconciliation this hook hand-rolls. See
+ * "Filter controls" in `docs/DATA-FLOW.md`.
  *
  * The parameter name is the caller's: ADR-0005 gives public routes Portuguese
  * parameters (`busca`, `pagina`, `marca`) and admin routes English ones, so
  * this hook stays ignorant of which vocabulary it is serving. Modules wrap it
- * and own their own names.
+ * and own their own names — and the wrapper, not the component, is where
+ * "a filter change drops the page" lives.
  *
  * Any component calling this needs a `<Suspense>` boundary above it on a
  * prerendered route, or the production build fails — `useSearchParams` opts the

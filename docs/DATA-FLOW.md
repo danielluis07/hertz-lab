@@ -103,8 +103,181 @@ is the alternative, and it is the one that fails silently — every filter added
 later is a fresh chance to diverge. Passing the object makes parity structural:
 the client cannot disagree because it never computes one.
 
-Where the normaliser itself lives, and what it does with defaults, belongs to
-the search-params spec, not here.
+That input comes from the URL, and how it is built is the next section.
+
+## The list input
+
+A list's filters, sort and page live in the URL. **One Zod schema per list turns
+that URL into the procedure's input** — ADR-0014 — and the same schema is the
+procedure's `.input()`. There is no separate normaliser, and no hand-written
+input type: `ProductListInput` is `z.infer<typeof productListParamsSchema>`.
+
+It lives in the **audience folder**, not the module root:
+`modules/products/admin/schemas.ts`. `docs/MODULES.md` puts the entity's own
+vocabulary at the root and one audience's vocabulary in its folder, and a filter
+schema is squarely the latter — an admin list is paginated and includes `draft`
+and `archived`, which is a sentence only the admin can say. The module root's
+`schemas.ts` holds the Product itself.
+
+### Invoking it
+
+The module exports a named function beside the schema, and the page calls that:
+
+```tsx
+// app/(admin)/admin/products/page.tsx
+const input = parseProductListParams(await searchParams);
+prefetch(trpc.products.admin.list.queryOptions(input));
+return <ProductTable input={input} />;
+```
+
+The function is the artifact ADR-0011 points at when it says the page normalises
+once. It owns the `await`, keeps Zod out of `page.tsx`, and reads at the call
+site as what it is.
+
+**The page types `searchParams` itself.** Next's generated `PageProps` types
+`params` but not `searchParams`, so the page declares
+`Promise<Record<string, string | string[] | undefined>>` — which is also the
+honest shape, and the reason the schema has coercion to do at all.
+
+### What is a parameter, and what is not
+
+Each one earns its place against a column the database can actually serve. For
+products that is `search` (backed by the `product_search_idx` GIN index over the
+Portuguese `tsvector`), `status`, `categoryId` and `brandId` (both indexed
+foreign keys), plus `sortBy`, `sortOrder` and `page`.
+
+**`perPage` is not a parameter.** An admin table's page size is a layout
+decision — the table is built for a row count — so it is a module constant,
+`PRODUCTS_PER_PAGE`, and the procedure takes it from nowhere. Exposing it varies
+every query key on a value nobody changes and hands an Admin `?perPage=100000`.
+It becomes a parameter the day a real page-size control is specified, and it
+brings a `.max()` clamp with it.
+
+**A `createdAt` range is not a parameter either.** "Products created between two
+dates" is an *orders* question wearing a catalog costume; when a date range is
+genuinely needed it lands in the module whose entity is temporal.
+
+Price and stock are not sortable or filterable on a Product list at all: they
+live on the Variant (ADR-0001), so sorting a Product by price first requires
+deciding *which* Variant's price. That is a real decision and not this one.
+
+### Sort
+
+**Two parameters, `sortBy` and `sortOrder`, not a combined `?sort=name.asc`.**
+This follows from ADR-0014's per-field `.catch()`: split, a garbage direction
+costs you only the direction, while a combined parameter has to catch the whole
+thing and lose the field with it. It is also directly readable in the address
+bar, which is worth something on an internal surface.
+
+**The default direction is per field, not global.** `createdAt` defaults to
+`desc` (newest first), `name` to `asc` (A-Z), `ratingAverage` to `desc` (best
+first). One global `desc` would sort products Z-A the first time an Admin clicks
+the name column, which reads as a bug. That table is a module constant: it is a
+rule about *these* fields, not a shape.
+
+### Parameter names
+
+**The schema's keys are the parameter names.** ADR-0005 gives admin routes
+English parameters and the schema's fields are English, so the URL key and the
+input field are the same string. A `PRODUCT_LIST_PARAMS` constant mapping
+`"search"` to `"search"` stores no information; the schema is the single
+declaration, and adding a filter is a one-line change there.
+
+Call sites that need the literal — `PaginationNav`'s `paramKey`, the filter hook
+below — type it as `keyof ProductListInput`, so a typo stops compiling instead
+of silently paginating nothing.
+
+The shop side is where a real mapping will exist, since ADR-0005 gives it
+`busca` and `pagina`. Admin's identity is exactly why no mapping exists here,
+and why `useQueryParam` and `buildPageHref` take the key as an argument rather
+than assuming either vocabulary.
+
+## Filter controls
+
+Writing a filter to the URL is a navigation. Every filter control does it inside
+a **transition**, which is what makes the list behave: the page keeps rendering
+the old URL state until the new server render arrives, so **a filter change does
+not re-suspend the table**.
+
+### One hook owns every write
+
+**No component calls `useQueryParam` or `router.replace` directly.** The module
+owns a single hook — `modules/products/admin/hooks/use-product-list-filters.ts`
+— and every control goes through it.
+
+The reason is a rule that would otherwise need repeating in five places:
+**every filter change drops `page`.** Filter to a smaller result set while
+`?page=7` is still in the URL and the Admin gets an empty table with no
+explanation. `useQueryParam` has `resetKeys` for this, but the discrete filters
+do not use `useQueryParam` (below), so the rule has no single home unless the
+module gives it one. This is the wrap ADR-0007 predicted when it said modules
+own their own parameter names.
+
+### Debounced and discrete are different
+
+**`useQueryParam` is for the debounced text input, and nothing else.**
+
+Its `useState` mirror of the URL, and the render-phase `synced` block that
+re-adopts the URL on a back button or route change, exist for exactly one
+reason: a debounced search box holds uncommitted keystrokes the URL does not
+have yet. That is genuinely hard, and the hook is where it is solved.
+
+A `status` dropdown has no uncommitted state — one click, one navigation. It
+uses **`useOptimistic(input.status)`** and needs no sync logic at all: React
+reverts it to the new prop when the transition ends, which is the same
+reconciliation `useQueryParam` hand-rolls. Reaching for `useQueryParam` there
+inherits forty lines of machinery to solve a problem the control does not have.
+
+These are one pattern — write the URL in a transition — with debounce as the
+special case that needs local state.
+
+### Sort is a link, not a control
+
+`lib/utils/pagination.ts` opens by saying pagination is a navigation, not a
+state change, and `PaginationNav` ships no JavaScript. **A sortable column
+header is the same shape**: a sorted list is a URL, and the current sort is
+computable from the `input` prop the page already passes down. The toggle rule —
+clicking the active column flips its direction, clicking a new column starts at
+that column's own default — is pure.
+
+So sort headers are anchors, the header row stays a server component, and the
+whole sort surface is free, shareable and middle-clickable. It needs a
+`buildSortHref`, which is **hand-written in the module**: there are no other
+callers yet, and ADR-0007's tie-breaker is promote on the second caller. The
+shape (a sort is a field plus a direction) is global-eligible when a second list
+wants it; the field list never is.
+
+### Replace or push
+
+**Changing what is in the list replaces. Moving through it pushes.**
+
+Filters and sort use `router.replace`. A filter is a refinement of the current
+view, not a destination — and with a debounced search box, `push` deposits a
+history entry per settled keystroke, so the back button walks the Admin
+backwards through their own typing instead of leaving the page.
+
+Pagination uses `push`, which it gets for free by being an `<a>`. Page 3 *is* a
+destination and back-to-page-2 is what an Admin expects.
+
+### Pending feedback
+
+**Dim the current table; do not fall back to the skeleton.**
+
+The control's root carries a `data-pending` attribute driven by
+`useOptimistic`, and an ancestor styles against it —
+`group-has-data-pending:opacity-50`. The Admin keeps their reading position and
+the layout does not flash.
+
+The skeleton is for the **first paint only**, at the page's `<Suspense>`
+boundary. "We have a skeleton, so use it" is the natural wrong inference:
+replacing a populated table on every filter change is strictly worse than
+dimming, and after the first render of a screen the skeleton should never be
+seen again.
+
+One caveat carried from the framework docs: `group-has-data-pending:` compiles
+to `:has()`, which the browser re-evaluates over the anchored subtree on every
+toggle. That is cheap here — twice per filter change — and would not be on a
+high-frequency interaction like dragging.
 
 ## Boundaries
 
