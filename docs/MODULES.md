@@ -232,3 +232,40 @@ were never inside a module, so nothing promoted them, and they are permitted to
 know rules because the frame *is* the rule. The gate above still governs
 everything that arrives by promotion. See ADR-0015 for the two tenants of
 `components/` and the test that separates them.
+
+## Tests
+
+**A test follows a rule.** Where a module's code knows no rule, it has no test —
+ADR-0017.
+
+What that leaves is the module root, and only the module root:
+
+- **Pure rules** — the `<concept>.ts` files. This is the same clause as "rules
+  do not live here", read from the other side: the reason a rule must be a pure
+  function of already-fetched data is so that something can reach it.
+- **Rule-bearing schemas.** A schema is tested when it holds a rule — defaults,
+  coercion, `.catch()` behaviour, refinements — and not when it only describes a
+  shape. `modules/products/admin/schemas.ts` is the worked example: every field
+  has `.catch()`, so `parse` cannot throw, garbage becomes defaults, unknown
+  keys are stripped, and the same object parses the URL *and* validates the
+  procedure input (ADR-0014). Those are claims worth enforcing.
+  `z.string().min(1)` on a form field is not; testing it tests that Zod works.
+
+Two things are not tested, and both because a rule already made it so:
+
+- **`server/`.** ADR-0010 left nothing in it but queries, and ADR-0017 decided
+  those are not tested — absolutely, with no exception for the hard case.
+- **`components/`.** `AGENTS.md` allows them only render logic. A component that
+  would reward a test has broken that rule; move the rule to the module root,
+  where the first clause covers it.
+
+**Tests mirror, they do not colocate**, which keeps `bun run build` from ever
+seeing a test file. The audience axis continues into `tests/` exactly as it
+continues into `server/`:
+
+```
+modules/products/admin/schemas.ts
+tests/modules/products/admin/schemas.test.ts
+```
+
+A module gains no `tests/` folder of its own; the anatomy above is unchanged.

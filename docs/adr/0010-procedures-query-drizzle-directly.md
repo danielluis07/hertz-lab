@@ -80,3 +80,7 @@ rule in `docs/MODULES.md` load-bearing — **anything expressible as a pure
 function of already-fetched data must be one**, and lives at the module root
 where `bun test` reaches it with no database at all. What is left in `server/`
 is queries, and queries are tested against Postgres or not at all.
+
+That last clause is resolved by ADR-0017: **not at all.** The absence of CI, not
+the absence of a seam, is what decides it, and CI is the trigger that reopens
+it.
