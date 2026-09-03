@@ -29,6 +29,18 @@ export async function recalculateProductRating(
   tx: Transaction,
   productId: string,
 ): Promise<void> {
+  // Take the row lock *before* the aggregate. Under READ COMMITTED two
+  // moderations of the same Product would otherwise each count the approved
+  // Reviews without seeing the other's uncommitted one, and the second UPDATE
+  // would overwrite the first with a total short by a review. Locking here
+  // makes the second transaction wait, and its aggregate — a fresh snapshot
+  // taken once the first commits — then includes that review.
+  await tx
+    .select({ id: product.id })
+    .from(product)
+    .where(eq(product.id, productId))
+    .for("update");
+
   // Rounded in Postgres rather than in JS: `avg` is numeric, and taking it
   // through a float to get there is how a 4.50 becomes a 4.49.
   const [rating] = await tx
