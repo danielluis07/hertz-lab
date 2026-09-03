@@ -58,3 +58,16 @@ export function parseBRL(input: string): number | null {
 
   return Math.round(value * 100);
 }
+
+const rating = new Intl.NumberFormat(LOCALE, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/**
+ * A Product's rating average is stored in hundredths, the same way money is
+ * stored in cents (ADR-0004). `450` -> `"4,5"`.
+ */
+export function formatRating(hundredths: number): string {
+  return rating.format(hundredths / 100);
+}

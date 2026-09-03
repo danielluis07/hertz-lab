@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { formatBasisPoints, formatBRL, parseBRL } from "@/lib/utils/format";
+import {
+  formatBasisPoints,
+  formatBRL,
+  formatRating,
+  parseBRL,
+} from "@/lib/utils/format";
 
 // Intl uses a non-breaking space after "R$"; normalise so assertions read plainly.
 const plain = (value: string) => value.replace(/ /g, " ");
@@ -56,5 +61,18 @@ describe("parseBRL", () => {
 
   test("rounds rather than truncating", () => {
     expect(parseBRL("0,005")).toBe(1);
+  });
+});
+
+describe("formatRating", () => {
+  test("reads hundredths as a one-decimal average", () => {
+    expect(formatRating(450)).toBe("4,5");
+    expect(formatRating(500)).toBe("5,0");
+    expect(formatRating(0)).toBe("0,0");
+  });
+
+  test("rounds to the tenth an admin table has room for", () => {
+    expect(formatRating(467)).toBe("4,7");
+    expect(formatRating(425)).toBe("4,3");
   });
 });
