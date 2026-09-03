@@ -20,13 +20,17 @@ export function AdminSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
+            {/* The lg size drops the button's padding when collapsed, where
+                every other size keeps the p-2 that centres a size-4 icon in the
+                32px rail on its own. So the label is hidden outright — its first
+                letters would otherwise show past the icon — and what is left is
+                centred explicitly. */}
             <SidebarMenuButton
               size="lg"
               tooltip="Hertz Lab"
+              className="group-data-[collapsible=icon]:justify-center"
               render={<Link href="/admin" />}>
               <AudioLines />
-              {/* The lg button drops its padding when collapsed, which would
-                  leave the first letters showing past the icon rail. */}
               <span className="font-semibold group-data-[collapsible=icon]:hidden">
                 Hertz Lab
               </span>
