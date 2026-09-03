@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types/auth";
+import type { UserRole } from "@/lib/auth-client";
 
 /**
  * Where a User lands the moment Better Auth hands back a session. An Admin

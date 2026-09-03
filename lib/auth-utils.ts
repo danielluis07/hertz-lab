@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
-import type { Session, UserRole } from "@/types/auth";
+import type { Session, UserRole } from "@/lib/auth-client";
 
 export const getCurrentSession = cache(async (): Promise<Session | null> => {
   return auth.api.getSession({

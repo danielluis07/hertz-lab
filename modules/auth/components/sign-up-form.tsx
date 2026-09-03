@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { authClient, getErrorMessage } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
+import { getErrorMessage } from "@/modules/auth/errors";
 import { postAuthPath } from "@/modules/auth/redirects";
 import { signUpSchema, type SignUpValues } from "@/modules/auth/schemas";
 
