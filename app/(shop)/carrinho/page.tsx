@@ -1,4 +1,4 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth } from "@/lib/auth-guards";
 
 const CartPage = async () => {
   await requireAuth();

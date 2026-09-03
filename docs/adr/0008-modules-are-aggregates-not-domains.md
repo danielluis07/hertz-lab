@@ -106,7 +106,7 @@ Four boundaries in that table were close calls and are recorded as such:
   honestly own both lifetimes.
 
 Better Auth's configuration and session helpers (`lib/auth.ts`,
-`lib/auth-utils.ts`) stay in the global layer as infrastructure. That is
+`lib/auth-guards.ts`) stay in the global layer as infrastructure. That is
 consistent with ADR-0007: a session check knows the *shape* of a session, and
 ADR-0006 already fixes where it is called.
 

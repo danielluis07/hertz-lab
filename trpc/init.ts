@@ -1,4 +1,4 @@
-import { getCurrentSession } from "@/lib/auth-utils";
+import { getCurrentSession } from "@/lib/auth-guards";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { cache } from "react";
 import superjson from "superjson";

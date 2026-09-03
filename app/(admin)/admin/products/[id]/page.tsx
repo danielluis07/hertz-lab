@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAdmin } from "@/lib/auth-guards";
 
 const AdminEditProductsPage = async ({ params }: PageProps<"/admin/products/[id]">) => {
   await requireAdmin();

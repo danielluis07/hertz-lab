@@ -30,7 +30,7 @@ not a guard.
 ## Decision
 
 Every protected page calls `requireAuth()` or `requireAdmin()` from
-`@/lib/auth-utils` in its own `page.tsx` body, before rendering. No layout
+`@/lib/auth-guards` in its own `page.tsx` body, before rendering. No layout
 performs an authorisation check.
 
 `proxy.ts` keeps its cookie check and extends its matcher to `/admin/:path*`,

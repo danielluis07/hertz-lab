@@ -49,7 +49,7 @@ Every shared file states which side of the client/server line it lives on:
 
 - `hooks/*` begin with `"use client"`.
 - Server-only code begins with `import "server-only"` — whether it holds a
-  secret (`lib/auth-utils.ts`, `lib/s3.ts`) or simply must never reach a
+  secret (`lib/auth-guards.ts`, `lib/s3.ts`) or simply must never reach a
   bundle. Every file under `modules/<name>/server/` carries it, and a
   `no-restricted-imports` rule guards that folder besides; the two fail at
   different moments on purpose (see `docs/MODULES.md`).
