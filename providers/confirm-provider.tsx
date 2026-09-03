@@ -2,8 +2,8 @@
 
 import {
   createContext,
-  useContext,
   useCallback,
+  useContext,
   useState,
   type ReactNode,
 } from "react";
@@ -19,22 +19,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-type ConfirmState = {
+/**
+ * What a caller hands over: the copy to show, and the act to run once the user
+ * says yes. The provider owns everything after that — the pending state while
+ * `action` is in flight, and the closing when it settles — so a call site is
+ * one call and no local `isConfirmOpen`/`isPending` bookkeeping.
+ */
+export type ConfirmOptions = {
   title: string;
   message: string;
-  resolve: (value: boolean) => void;
-} | null;
+  action: () => void | Promise<void>;
+};
 
 type ConfirmContextType = {
-  confirm: (title: string, message: string) => Promise<boolean>;
-  closeConfirm: () => void;
-  setPending: (value: boolean) => void;
+  confirm: (options: ConfirmOptions) => void;
 };
 
 const ConfirmContext = createContext<ConfirmContextType>({
-  confirm: () => Promise.resolve(false),
-  closeConfirm: () => {},
-  setPending: () => {},
+  confirm: () => {},
 });
 
 export const ConfirmProvider = ({
@@ -44,52 +46,52 @@ export const ConfirmProvider = ({
   children: ReactNode;
   className?: string;
 }) => {
-  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const [isPending, setIsPending] = useState(false);
 
-  const confirm = useCallback((title: string, message: string) => {
-    return new Promise<boolean>((resolve) => {
-      setConfirmState({ title, message, resolve });
-      setIsPending(false);
-    });
-  }, []);
-
-  const closeConfirm = useCallback(() => {
-    // Settles the promise for callers that dismiss without choosing. A no-op
-    // after handleConfirm, which already resolved it.
-    confirmState?.resolve(false);
-    setConfirmState(null);
+  const confirm = useCallback((next: ConfirmOptions) => {
+    setOptions(next);
     setIsPending(false);
-  }, [confirmState]);
-
-  const setPending = useCallback((value: boolean) => {
-    setIsPending(value);
   }, []);
-
-  const handleConfirm = useCallback(() => {
-    if (confirmState) {
-      confirmState.resolve(true);
-    }
-  }, [confirmState]);
 
   const handleCancel = useCallback(() => {
-    confirmState?.resolve(false);
-    setConfirmState(null);
+    setOptions(null);
     setIsPending(false);
-  }, [confirmState]);
+  }, []);
+
+  const handleConfirm = useCallback(async () => {
+    if (!options) return;
+
+    setIsPending(true);
+
+    try {
+      await options.action();
+      setOptions(null);
+    } catch (error) {
+      // The action owns its own error reporting; the dialog stays open so the
+      // user can retry. Logged so a rejection is never silent.
+      console.error(error);
+    } finally {
+      setIsPending(false);
+    }
+  }, [options]);
 
   return (
-    <ConfirmContext.Provider value={{ confirm, closeConfirm, setPending }}>
+    <ConfirmContext.Provider value={{ confirm }}>
       {children}
-      {confirmState && (
-        <Dialog open={true} onOpenChange={handleCancel}>
+      {options && (
+        <Dialog
+          open={true}
+          onOpenChange={(open) => {
+            // A dismissal mid-action would leave the act running behind a
+            // closed dialog, so the dialog only closes on its own terms.
+            if (!open && !isPending) handleCancel();
+          }}>
           <DialogContent className={cn(className, "font-admin")}>
             <DialogHeader>
-              <DialogTitle className="font-admin">
-                {confirmState.title}
-              </DialogTitle>
+              <DialogTitle className="font-admin">{options.title}</DialogTitle>
               <DialogDescription className="font-admin">
-                {confirmState.message}
+                {options.message}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="pt-2">
