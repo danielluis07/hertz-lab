@@ -20,6 +20,12 @@ const serverImportPatterns = [
   "./**/server/**",
   "../**/server",
   "../**/server/**",
+  // `trpc/server.tsx` is a file with that name, not a module's server/ folder:
+  // it holds `prefetch`, `load`, `caller` and `<HydrateClient>`, which every
+  // admin page reads (`docs/DATA-FLOW.md`). It is `import "server-only"` that
+  // keeps it off the client; ADR-0020 is about folders, and the patterns above
+  // cannot tell the two apart. Negations come last: later patterns win.
+  "!@/trpc/server",
 ];
 
 const serverImportMessage =
