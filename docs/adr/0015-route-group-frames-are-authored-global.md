@@ -76,14 +76,29 @@ The two instances are **`components/admin/`** and **`components/shop/`**.
 imported by its own route group's layout and by nothing else; that single-owner
 property is what keeps it out of the dependency graph the modules form.
 
-Concretely, `components/admin/` holds three files and is expected to stay three:
+Concretely, `components/admin/` holds three *things* — the nav list, the
+sidebar, the header — in five files, and is expected to stay five:
 
 ```
 components/admin/
-  admin-sidebar.tsx
-  admin-header.tsx
   nav.ts
+  admin-sidebar.tsx
+  admin-nav.tsx
+  admin-header.tsx
+  admin-user-menu.tsx
 ```
+
+**A frame component is a server component; the leaf that needs a client hook is
+split out and named for what it is.** The extra two files are that boundary and
+nothing else. `admin-nav.tsx` exists because active state comes from
+`useSelectedLayoutSegments()`, and `admin-user-menu.tsx` because the session is
+read with `authClient.useSession()` — so the sidebar's chrome and the header's
+own markup ship no JavaScript, and the hook sits in the smallest component that
+needs it rather than pulling its parent across the line with it.
+
+Neither leaf owns data or a rule, so neither is a module by the test below. A
+sixth file is a smell for the same reason a fourth would have been: the frame
+splits where the client boundary falls, and nowhere else.
 
 **Anything that owns data or a rule of its own becomes a module and is composed
 into the frame.** This is what stops the frame from growing into a junk drawer.
@@ -166,7 +181,7 @@ links exist". Everything that has either is a module.
 
 The frame is therefore expected not to grow. If `components/admin/` reaches
 half a dozen files, the likely reading is that something with an owner was
-filed there, not that the frame turned out to be bigger than three files.
+filed there, not that the frame turned out to be bigger than three things.
 
 Because the shell owns the nav, adding a module to the admin surface is two
 acts, not one: build the module, then add its line to `nav.ts`. A module that is
