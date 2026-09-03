@@ -55,6 +55,36 @@ Every shared file states which side of the client/server line it lives on:
   different moments on purpose (see `docs/MODULES.md`).
 - `lib/utils/*` are isomorphic and mark nothing.
 
+### Where `"use client"` goes
+
+A component is a server component until something makes it otherwise, and what
+makes it otherwise is narrow: a hook, an event handler, or a browser API.
+
+The directive goes on the **smallest component that needs it**, never on the
+nearest convenient parent. A frame keeps its markup on the server and splits the
+interactive leaf into its own file, named for the thing that needs the browser:
+`components/admin/admin-header.tsx` is a server component, and
+`admin-user-menu.tsx` — which reads the session — is not.
+
+Two qualifiers stop this from becoming a file-count tax:
+
+- **Pass server components through client ones as `children` or props.** A
+  client component's *imports* join the client graph; its children do not, so a
+  server parent may render `SidebarProvider` and `ConfirmProvider` and stay a
+  server component. `app/(admin)/layout.tsx` is the worked example.
+- **Split only when the server half has content of its own.** If extracting the
+  leaf leaves a parent that does nothing but forward props, the parent *was* the
+  interactive thing: mark it and keep it whole.
+
+The payload saved by any one split is small, because nearly every file under
+`components/ui/` is already `"use client"`. Legibility is the reason to do it:
+`grep -rn '"use client"'` is meant to read as an inventory of the app's
+interactive surface, which only works while the directive sits where the
+interactivity actually is.
+
+`docs/DATA-FLOW.md` applies this to the read path — why the filter bar is the
+only client component on a list page, and why sort headers are anchors.
+
 ## Formatters
 
 `Intl` formatters are constructed once at module scope, never per call —

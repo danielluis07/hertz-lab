@@ -66,12 +66,13 @@ export const ConfirmProvider = ({
 
     try {
       await options.action();
-      setOptions(null);
     } catch (error) {
-      // The action owns its own error reporting; the dialog stays open so the
-      // user can retry. Logged so a rejection is never silent.
+      // Closing on rejection is not a swallowed error: ADR-0013's global tier
+      // toasts every failed mutation. The log is for the actions that are not
+      // tRPC mutations and so have no toast behind them.
       console.error(error);
     } finally {
+      setOptions(null);
       setIsPending(false);
     }
   }, [options]);

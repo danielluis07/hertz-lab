@@ -638,19 +638,21 @@ see "Images" below and ADR-0018.
 on rejection:
 
 ```ts
-await confirm({
+confirm({
   title: "Remover variação",
   message: "Esta ação não pode ser desfeita.",
   action: () => removeVariant.mutateAsync({ id }),
 });
 ```
 
-> **Not yet implemented.** `providers/confirm-provider.tsx` still exposes the
-> older `confirm(title, message) => Promise<boolean>` alongside `setPending` and
-> `closeConfirm`, which leaves the dialog mounted after a confirmation and makes
-> every call site run a four-step sequence — where forgetting `closeConfirm` on
-> the error path strands the dialog open forever. The signature above is the
-> target; changing it is tracked separately.
+**The call is not awaited, and `confirm` returns nothing.** Handing the action
+over is what removes the question a call site used to answer for itself; a
+promise back would re-open it, and one that settles on cancel as well as on
+success would say nothing useful anyway. The dialog closes when the action
+settles either way — a rejection is already reported by the global tier above.
+
+The provider refuses to close while the action is in flight, so a dismissal
+cannot leave the write running behind a closed dialog.
 
 ## `mutate` or `mutateAsync`
 
