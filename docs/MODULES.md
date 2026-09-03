@@ -80,12 +80,23 @@ So the surface is a rule rather than a file:
 | --- | --- |
 | `modules/<name>/*` (root files) | any module, any route |
 | `modules/<name>/<audience>/*` | routes of that audience, and the module itself |
-| `modules/<name>/server/*` | the module's own server code, and `trpc/routers/_app.ts` composing it |
+| `modules/<name>/server/*` | the module's own server code, `trpc/routers/_app.ts` composing it, and **another module's `server/`** in the direction ADR-0009 permits |
 
 The `server/` line is the one that matters, and it is **enforced**, not merely
 documented: a `no-restricted-imports` rule fails the import at lint time. Left
 to convention it fails at build time instead, with a `server-only` error that
 names the leaf file and not the import that dragged it in.
+
+**The rule keys on the importing file, not only on the path imported**
+(ADR-0020): *no file outside a `server/` folder may import one.* A server file
+may import another module's server file where the foreign key points that way —
+`modules/reviews/server/` reaching `modules/products/server/rating.ts` is the
+one instance today, and it exists because ADR-0004 requires the rating
+recalculation to be atomic with the Review moderation that triggers it.
+
+The trap the narrowing hides: **a module's `admin/` and `shop/` folders are not
+`server/`.** They render in the browser, so they may not import a `server/`
+file, their own module's included.
 
 Everything else is convention. The audience line is worth stating and not worth
 enforcing — importing `products/admin/` from a shop route is a mistake that
@@ -269,3 +280,55 @@ tests/modules/products/admin/schemas.test.ts
 ```
 
 A module gains no `tests/` folder of its own; the anatomy above is unchanged.
+
+Worked through, the exemplar's whole suite is three files — `status.test.ts`,
+`admin/schemas.test.ts` and a **narrow** `schemas.test.ts` covering only the two
+clauses that are rules (`variants.min(1)`, `altText` non-empty) and not the
+`z.string().min(1)` beside them. See `docs/PRODUCTS-ADMIN.md`.
+
+## The template
+
+`docs/PRODUCTS-ADMIN.md` specifies the **products** admin module end to end. It
+is the exemplar: products is the hardest surface in the store, so what survives
+it survives the other eight. This section is the part of it that generalises.
+
+**Every admin module has:**
+
+- **A procedure set** — `list`, `byId`, `create`, `update`, plus **a domain verb
+  for every status transition** (`publish`, `archive`, `moderate`, `fulfil`).
+  A status is never a field on the form: a form edits what a thing *is*, a
+  transition is what it *does*, and a transition fires from a list row where no
+  form exists.
+- **`list` returns `{ items, total }`** and takes an ADR-0014 params schema from
+  `admin/schemas.ts`. `total` is what `PaginationNav` needs. `perPage` is a
+  module constant and never an input.
+- **`byId` returns the whole aggregate the form edits**, or `null`. One form,
+  one `defaultValues`, one query.
+- **One root `schemas.ts`** serving both the tRPC `.input()` and the RHF
+  resolver. Where the form edits child rows, every child element carries
+  `id: z.string().optional()` and the write **reconciles** — ADR-0019.
+- **The form triad** — a shared body (`<name>-form.tsx`) plus two thin owners
+  (`<name>-create-form.tsx`, `<name>-edit-form.tsx`) that differ only in which
+  hook they fire and where they navigate. A `mode` prop would be a rule in a
+  `.tsx`.
+- **One hook per write**, named for the verb, owning invalidation and the
+  success toast and nothing else. Navigation stays at the call site.
+- **Tests that follow rules only** — the pure `<concept>.ts` files and the
+  rule-bearing schemas, and nothing in `server/` or `components/`.
+
+**The `options` procedure.** Any module whose rows another module's select or
+filter needs owns a cheap `options` procedure returning `{ id, name }[]` with no
+pagination — `brands.admin.options`, `categories.admin.options`. Its own list
+surface does not use it; it exists for the *composing route*, which calls it
+through `caller` and passes the array down as a prop. This is ADR-0008's rule 4
+in practice: the route composes the modules, rather than one module fetching
+another's data.
+
+**Not every module gets the whole template.** There are **8 lists, 7 edit
+surfaces and 5 create surfaces**: `reviews` is a list plus `moderate`, and
+`orders` and `customers` have no create. A module that needs no form skips the
+entire triad — it does not scaffold an empty one.
+
+**Products-only, and not to be copied by default:** nested child arrays at all,
+images (ADR-0018), and a denormalised column another module maintains
+(ADR-0004, ADR-0020). Most of the eight are a single table with a single form.

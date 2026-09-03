@@ -83,3 +83,11 @@ it). That problem is real and is not solved here.
 **Resolved by ADR-0018.** Upload is eager, the key is a form value, and orphans
 are tolerated deliberately rather than swept — this repo has no scheduled runner
 to sweep with.
+
+**Refined by the products exemplar.** The "after the write" rule in
+`docs/DATA-FLOW.md` originally read *add `router.refresh()` only if the page
+reads through `caller`*. That is too narrow: `load` also renders its value into
+the RSC payload, which `invalidateQueries` cannot reach. The condition is
+whether **a server component rendered the value** — `caller` or `load` — and
+`/admin/products/[id]`, whose heading is `load`ed and whose form reads the same
+query, is the case that exposed it.

@@ -24,7 +24,10 @@ what makes a User a Customer, together with a phone.
 ## Catalog
 
 **Product** — the marketing entity a shopper reads about: name, description,
-Brand, Category. A Product is never bought directly.
+Brand, Category. A Product is never bought directly. A Product is **draft**
+(being written, invisible to shoppers), **active** (on sale) or **archived**
+(withdrawn from sale, kept because Orders still refer to it). *Publishing* and
+*archiving* are the Admin's two acts on that fact; a Product is never deleted.
 
 **Variant** — the sellable unit: its own SKU, price, stock, and dimensions.
 Every Product has at least one Variant, even when there is only one thing to

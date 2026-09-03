@@ -120,3 +120,16 @@ This decision is about the **list**. It was checked against the **form** before
 being taken — products' create form is nested variants, specification rows and
 an out-of-band image upload, which no field-list declaration describes — and
 that sketch is on the prototype branch. No part of a form is shared today.
+
+**One clause corrected by the products exemplar.** "The filter bar is the only
+client component on the page" holds for a list with no per-row action, and
+products has one: publish and archive need an `onClick`, so
+`product-row-actions.tsx` is a second client component. It is a leaf receiving
+an `id` and a `status`, so the property this ADR actually decided on — that the
+raw row array is never serialized to the browser — is untouched. The
+measurements stand.
+
+The same exemplar cashes in the form sketch this ADR ended on. *One form, one
+mutation* turned out to mean more than it said: because a Product is an
+aggregate of four tables, "one mutation" forced a reconciling transaction and a
+form that speaks array indices rather than database ids. That is ADR-0019.

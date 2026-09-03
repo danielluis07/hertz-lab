@@ -37,19 +37,29 @@ export default async function ProductPage({ params }: PageProps<"/admin/products
   const product = await load(trpc.products.admin.byId.queryOptions({ id }));
   if (!product) notFound();
 
-  // only the client table reads this one
-  prefetch(trpc.products.admin.variants.queryOptions({ productId: id }));
+  // only the client chart reads this one
+  prefetch(trpc.reviews.admin.summary.queryOptions({ productId: id }));
 
   return (
     <HydrateClient>
       <h1>{product.name}</h1>
-      <Suspense fallback={<VariantTableSkeleton />}>
-        <VariantTable productId={id} />
+      <ProductEditForm product={product} />
+      <Suspense fallback={<ReviewSummarySkeleton />}>
+        <ReviewSummary productId={id} />
       </Suspense>
     </HydrateClient>
   );
 }
 ```
+
+> An earlier version of this example split the Variants into their own
+> `products.admin.variants` query. That is wrong for this module and the example
+> has been corrected: ADR-0016 fixed *one form, one mutation*, and one React
+> Hook Form needs one `defaultValues` object — so `byId` returns the **whole
+> aggregate** (variants, images, specifications) in one query, and there is
+> nothing left to split. See `docs/PRODUCTS-ADMIN.md`. The shape the example is
+> teaching — two queries, two paths, one page — still holds; the second query
+> just has to be data the form does not own.
 
 **`caller` is not "data rendered on the server".** It is data **no client query
 exists for** — nothing calls `useSuspenseQuery` on it anywhere, so there is
@@ -209,9 +219,13 @@ them are shared:
 </div>
 ```
 
-**The filter bar is the only client component on the page.** The header row,
-every cell and the pagination are HTML, and no row data is serialized into the
-document.
+**The filter bar is the only client component on the page** — with one
+exception the exemplar found: a list whose rows carry a **status action**
+(publish, archive, moderate) needs an `onClick`, so it has a second client
+component, `<name>-row-actions.tsx`. It is a leaf — a `<td>`'s worth of buttons
+taking an `id` and a `status` — so the property that actually matters is
+unharmed: the header row, every cell and the pagination are still HTML, and **no
+row data is serialized into the document**.
 
 The dividing line is whether the declaration can be **data**. A filter spec is
 strings and option arrays, so it crosses the RSC boundary as a prop and can be
@@ -580,9 +594,23 @@ a push is a second render of the page just rendered.
 
 **Staying put** — edit in place, archive from a list. The hook's
 `invalidateQueries` has already handled the hydrated queries. Add
-`router.refresh()` **only if that page reads something through `caller`** — a
+`router.refresh()` **only if that page read something on the server** — a
 heading, a breadcrumb, a summary count. On a page whose data is entirely
 hydrated, `router.refresh()` is pure waste.
+
+**"On the server" means `caller` *or* `load`, and the second half is the one
+that catches people.** An earlier version of this rule said "through `caller`",
+which is too narrow: `load` puts its value in the RSC payload *as well as*
+hydrating it, and the RSC copy is exactly what `invalidateQueries` cannot
+reach. The worked case is `/admin/products/[id]`, where the page `load`s
+`byId` for its `<h1>` and the form reads the same query — rename a Product and
+save, and the form refetches while the heading keeps the old name until a hard
+navigation. So an edit-in-place page that renders *anything* from a server read
+adds `router.refresh()`.
+
+The reliable test is not which helper was called but **whether a server
+component rendered the value**. `prefetch` alone never does, which is why a page
+that only prefetches needs no refresh.
 
 ## Destructive writes
 

@@ -78,3 +78,10 @@ stops at counts.
 The rule is also silent on the shape of the traffic it permits — how `checkout`
 actually reaches four modules is a data-flow question, specified separately. All
 this fixes is which way an arrow may point.
+
+**Extended by ADR-0020.** This ADR fixes which way an arrow may point; it was
+silent on whether the traffic it permits may reach a module's `server/` folder,
+which `docs/MODULES.md` had made private without exception. ADR-0020 says it
+may, in this ADR's direction and only between two `server/` folders. The graph
+is unchanged — no new edge, no new cycle risk — and is still readable off
+`db/schema/`.
