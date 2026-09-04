@@ -29,7 +29,7 @@ modules/products/
     rating.ts         recalculateProductRating — called by reviews (ADR-0020)
   admin/
     schemas.ts        the list params schema (ADR-0014)
-    constants.ts      the FilterBar spec
+    filters.ts        the FilterBar spec
     components/       9 files
     hooks/            5 files
 ```
@@ -212,7 +212,10 @@ procedure selects a subset.
 `constants.ts` at the root holds `PRODUCTS_PER_PAGE`, `PRODUCT_SORT_DEFAULTS`
 (per-field default directions — `name` asc, `ratingAverage` desc, `createdAt`
 desc) and `PRODUCT_STATUS_OPTIONS` with pt-BR labels.
-`admin/constants.ts` holds `PRODUCT_FILTERS`, the `FilterBar` spec.
+`admin/filters.ts` holds `productFilters`, the `FilterBar` spec — a function
+of the Brand and Category option sets rather than a constant, because two of its
+four filters are rows the composing route reads per request
+(`docs/DATA-FLOW.md`).
 
 ## Routes to surfaces
 
@@ -235,10 +238,15 @@ const AdminProductsPage = async ({ searchParams }: {
 
   return (
     <HydrateClient>
-      <h1>Produtos</h1>
-      <Suspense fallback={<ProductTableSkeleton />}>
-        <ProductTable input={input} brands={brands} categories={categories} />
-      </Suspense>
+      <div className="group">
+        <h1>Produtos</h1>
+        <FilterBar filters={productFilters({ brands, categories })} input={input} />
+        <div className="group-has-data-pending:opacity-50">
+          <Suspense fallback={<ProductTableSkeleton />}>
+            <ProductTable input={input} />
+          </Suspense>
+        </div>
+      </div>
     </HydrateClient>
   );
 };
@@ -251,10 +259,11 @@ down as a prop, so the client cannot build a divergent query key.
 **The Brand and Category options are the route composing three modules**, which
 is ADR-0008's rule 4 having its first real instance. They come through `caller`
 because no client component reads them as a query — `FilterBar` receives them as
-props. Folding them into `list`'s return would weld an unrelated payload onto
-every filter combination in the cache; fetching them from inside `products`
-would put a brands query in the wrong module. See "The `options` procedure" in
-`docs/MODULES.md`.
+props — the bar sits in the page, outside the Suspense boundary, because it is
+shell rather than data. Folding them into `list`'s return would weld an
+unrelated payload onto every filter combination in the cache; fetching them from
+inside `products` would put a brands query in the wrong module. See "The
+`options` procedure" in `docs/MODULES.md`.
 
 ### `/admin/products/new`
 

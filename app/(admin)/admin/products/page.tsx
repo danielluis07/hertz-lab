@@ -1,9 +1,11 @@
 import { Suspense } from "react";
+import { FilterBar } from "@/components/filter-bar";
 import { requireAdmin } from "@/lib/auth-guards";
 import { ProductTable } from "@/modules/products/admin/components/product-table";
 import { ProductTableSkeleton } from "@/modules/products/admin/components/product-table-skeleton";
+import { productFilters } from "@/modules/products/admin/filters";
 import { parseProductListParams } from "@/modules/products/admin/schemas";
-import { HydrateClient, prefetch, trpc } from "@/trpc/server";
+import { caller, HydrateClient, prefetch, trpc } from "@/trpc/server";
 
 /**
  * The page types `searchParams` itself: Next's generated `PageProps` leaves it
@@ -27,16 +29,40 @@ const AdminProductsPage = async ({
   // the streaming the Suspense boundary below exists for.
   prefetch(trpc.products.admin.list.queryOptions(input));
 
+  // The route composing three modules — ADR-0008's rule 4. Through `caller`
+  // because no client component reads either as a query: `FilterBar` takes
+  // them as props, so hydrating them would ship a payload nothing reads. In
+  // parallel because neither waits on the other.
+  const [brands, categories] = await Promise.all([
+    caller.brands.admin.options(),
+    caller.categories.admin.options(),
+  ]);
+
   return (
     <HydrateClient>
-      <div className="flex flex-col gap-6">
+      <div className="group flex flex-col gap-6">
         <h1 className="text-2xl font-semibold">Produtos</h1>
 
-        {/* Suspense is per data section and owned by the page. There is no
-            loading.tsx under admin: it would replace this shell as well. */}
-        <Suspense fallback={<ProductTableSkeleton />}>
-          <ProductTable input={input} />
-        </Suspense>
+        {/* Outside the Suspense boundary: the bar is shell rather than data,
+            and a filter change must not replace the control that made it. It
+            still waits on the two `options` calls above — see the note in
+            `docs/DATA-FLOW.md`. */}
+        <FilterBar
+          filters={productFilters({ brands, categories })}
+          input={input}
+        />
+
+        {/* A filter in flight dims the table it is about to change rather than
+            flashing the skeleton back (`docs/DATA-FLOW.md`); the skeleton is
+            the first paint only. `data-pending` is set by whichever control is
+            navigating. */}
+        <div className="transition-opacity group-has-data-pending:opacity-50">
+          {/* Suspense is per data section and owned by the page. There is no
+              loading.tsx under admin: it would replace this shell as well. */}
+          <Suspense fallback={<ProductTableSkeleton />}>
+            <ProductTable input={input} />
+          </Suspense>
+        </div>
       </div>
     </HydrateClient>
   );
