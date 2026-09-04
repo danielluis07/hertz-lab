@@ -140,6 +140,38 @@ paint and re-mounted on every filter change. Which file holds the bar was never
 what this ADR decided; that the bar is *one shared component taking a data spec*
 is, and it is untouched.
 
+**A third clause, and the one that needed a decision rather than a note.** Two
+sentences here are wrong as written: *"The only client code on the page is the
+filter bar"* in the Decision, and *"The tables stay on the server. Header rows,
+cells and pagination are HTML, sort headers are anchors, and no row data is
+serialized into the page"* above. `product-table.tsx` is a `"use client"`
+component reading its rows through `useSuspenseQuery`, and the page `prefetch`es
+that query and hydrates it.
+
+That is deliberate, and it is ADR-0011's rule reaching a conclusion this ADR did
+not anticipate: a query is prefetched and hydrated **if and only if** a client
+component reads it, so the two ADRs cannot both be satisfied and one had to give.
+The write path decided it. `docs/DATA-FLOW.md` specifies every row action as
+`invalidateQueries(trpc.products.pathFilter())` and nothing more, and rests that
+on refetching *active* queries — those a mounted component observes. A server
+table has no active query, so publish and archive would each need a
+`router.refresh()` instead, on all eight surfaces. Issue #31 has both
+resolutions in full.
+
+**What this ADR measured is untouched, and it is worth restating as exactly what
+it was:** the raw row array never crosses the RSC boundary **as a prop**, and no
+table is config-driven. That is what the prototype compared and what the
+`cell`-is-a-function test decides. The rows do now reach the browser — as a
+dehydrated query cache, which is the same bytes by a different mechanism — so
+the honest version of the sentence above is that a list surface ships its rows
+once as markup and once as cache, plus the table's own JavaScript. On a surface
+whose users are staff, that is the price of the invalidation model, and this
+ADR's own measurements are the reason to be relaxed about it: the payload
+comparison never favoured the shape this ADR chose.
+
+Sort headers are still anchors and pagination is still hrefs. Neither ships a
+click handler, and neither ever depended on where the boundary sits.
+
 The same exemplar cashes in the form sketch this ADR ended on. *One form, one
 mutation* turned out to mean more than it said: because a Product is an
 aggregate of four tables, "one mutation" forced a reconciling transaction and a
