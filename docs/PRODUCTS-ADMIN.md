@@ -42,7 +42,6 @@ modules/products/
     filters.ts        the FilterBar spec
     form-values.ts    byId's aggregate as the form's defaultValues, and where an
                       Image's Variant index lands when that Variant is removed
-    upload.ts         putWithProgress — the XHR ADR-0018 forces
     components/       9 files
     hooks/            7 files
 ```
@@ -52,6 +51,17 @@ modules/products/
 shared across audiences yet. **No `shop/`, no `server/shop.ts`** — the shop's
 surfaces are out of this map's scope, and the anatomy is lazy: they appear when
 something needs them.
+
+**No `upload.ts`** — it left for the second uploader. `putWithProgress` and the
+`createImageBitmap` read are `lib/upload.ts`, the picker they feed is
+`components/image-upload-field.tsx`, and the pick-check-presign-PUT sequence
+behind it is `hooks/use-image-upload.ts`. The Category picture that makes them
+shared is decided (ADR-0021) and lands a ticket later; the field was written in
+its final home rather than moved there the week after, which is the one place
+this repo runs ahead of ADR-0007's *promote on the second caller*, and does it
+with the second caller named. What stayed here is the pair of procedures, which
+cannot promote — each uploader mints its own prefix and guards its own table —
+and everything that is a rule about a Product.
 
 ## Procedures
 
@@ -287,10 +297,10 @@ the sentence the procedure would have refused with.
 `lib/utils/image.ts`, because none of it is a rule about a Product (ADR-0007,
 ADR-0021) and a Category is the second uploader. `IMAGE_CONTENT_TYPES`,
 `IMAGE_MAX_BYTES`, `IMAGE_EXTENSIONS`, `imageUploadSchema`, `checkImageUpload`,
-the dimension bounds with `checkImageDimensions`, and `imageKeyMatcher` live
-there — one list of accepted types and one ceiling serving
-`createImageUpload`'s `.input()`, the browser's pre-flight check and the write's
-`stat`, at once. Both checks take a `{ type, size }` and a `{ width, height }`
+the dimension bounds with `checkImageDimensions`, the `IMAGE_SPEC_SUMMARY` the
+panel above every picker renders, and `imageKeyMatcher` live there — one list
+of accepted types and one ceiling serving `createImageUpload`'s `.input()`, the
+browser's pre-flight check and the write's `stat`, at once. Both checks take a `{ type, size }` and a `{ width, height }`
 rather than a `File`, which is what keeps the browser's vocabulary out of them
 and `bun test` inside.
 
@@ -435,7 +445,7 @@ Nine components, all in `modules/products/admin/components/`.
 | `product-edit-form.tsx` | client | `product-form`, `useSuspenseQuery` on `byId` |
 | `variant-fields.tsx` | client | `useFieldArray`, and `dropVariant` as it removes a row |
 | `specification-fields.tsx` | client | `useFieldArray` |
-| `image-fields.tsx` | client | the tiles and their bars, over a `ProductImages` prop |
+| `image-fields.tsx` | client | `ImageUploadField` and `ImageTile`, over a `ProductImages` prop |
 
 The table owns its markup and its columns, and shares everything whose
 declaration is **data** — ADR-0016's test. Its skeleton is a sibling file, not a
@@ -471,8 +481,15 @@ keeps the body from owning an error path that differs per owner.
 
 `image-fields.tsx` is fed by `product-form.tsx` rather than calling
 `useProductImages` itself: the hook has a second reader one level up, since
-submit is disabled while `isUploading`. One prop, `images: ProductImages`,
-rather than the nine callbacks the hook returns.
+submit is disabled while `upload.isUploading`. One prop, `images:
+ProductImages`, rather than the five things the hook returns.
+
+What that file renders is what is a rule about a Product, and nothing else
+(ADR-0021): the alt text, the Variant select and the "Capa" badge, inside the
+shared `ImageTile`, handed to `ImageUploadField` as children so that a saved
+photograph and one still going up sit in one grid. The picker, the spec panel,
+the determinate bar and the per-file retry are that field's, shared with the
+Category uploader.
 
 `useWatch({ control })` rather than `form.watch()` — the latter opts a component
 out of the React Compiler.
@@ -485,11 +502,18 @@ the verb: `use-create-product`, `use-update-product`, `use-publish-product`,
 `use-discard-image-upload`.
 
 `use-product-images` is the exception, and the exception is ADR-0018's. It owns
-the images field array *and* the files still going up to it — pick, check,
-presign, PUT, append, retry, cancel, reorder, remove — because that is rule and
-sequence, which a `.tsx` may not hold. `product-form.tsx` calls it rather than
+the images field array and the Product rules over it — append, reorder, remove,
+and the Variant index a tile carries — because that is rule and sequence, which
+a `.tsx` may not hold. `product-form.tsx` calls it rather than
 `image-fields.tsx`, because the submit button is its second reader: submit is
 disabled while any upload is in flight.
+
+**The files still going up are no longer its.** Pick, check, presign, PUT,
+progress, retry, cancel and discard are true of any picture, so they are
+`hooks/use-image-upload.ts` since a Category became the second uploader
+(ADR-0021). This hook composes it, hands it the module's own
+`createImageUpload` and `discardImageUpload` — the half that cannot promote —
+and gives it one callback: what to do with a key that arrived.
 
 Two of its responsibilities went unnamed until the build, and both are the cost of
 ADR-0019's indices and ADR-0018's orphans, paid at the only place that can see
@@ -507,9 +531,11 @@ them:
   Each is an orphan this code can see, and ADR-0018 takes exactly those.
 
 **A file becomes a form value only once its bytes are in the bucket.** Until
-then it is a `PendingUpload` held here, with its own preview, bar, pt-BR error
-and — for a failed transfer, never a refused type or size — its own retry. That
-is what keeps `images` a list of keys that certainly exist.
+then it is a `PendingUpload` held by `useImageUpload`, with its own preview,
+bar, pt-BR error and its own retry — and a tile only ever carries a failed
+*transfer*, because a file refused for its type, its size or its shape was
+never sent and never became one (ADR-0021). That is what keeps `images` a list
+of keys that certainly exist.
 
 The two upload hooks own **neither** of the two things below. There is nothing
 to invalidate — minting a URL changes no row — and a success toast per

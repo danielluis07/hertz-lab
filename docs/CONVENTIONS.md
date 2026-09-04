@@ -54,6 +54,10 @@ Every shared file states which side of the client/server line it lives on:
   `no-restricted-imports` rule guards that folder besides; the two fail at
   different moments on purpose (see `docs/MODULES.md`).
 - `lib/utils/*` are isomorphic and mark nothing.
+- Browser-only code begins with `import "client-only"`, which is the same
+  statement from the other side: `lib/upload.ts` is `XMLHttpRequest` and
+  `createImageBitmap`, and that is precisely why it is not one of the
+  `lib/utils/*` above (ADR-0021).
 
 ### Where `"use client"` goes
 

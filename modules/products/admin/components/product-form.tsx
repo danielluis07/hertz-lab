@@ -331,13 +331,13 @@ export function ProductForm({
         <div className="flex items-center justify-end gap-3">
           {/* Said out loud rather than left for the Admin to work out from a
               greyed-out button (ADR-0018). */}
-          {images.isUploading && (
+          {images.upload.isUploading && (
             <p className="text-muted-foreground text-sm">
               Aguarde o envio das imagens para salvar.
             </p>
           )}
 
-          <Button type="submit" disabled={images.isUploading}>
+          <Button type="submit" disabled={images.upload.isUploading}>
             {isPending && <Spinner data-icon="inline-start" />}
             {submitLabel}
           </Button>

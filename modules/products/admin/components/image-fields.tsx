@@ -1,17 +1,13 @@
 "use client";
 
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  RotateCcwIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, Trash2Icon } from "lucide-react";
 import {
   Controller,
   useFormState,
   useWatch,
   type Control,
 } from "react-hook-form";
+import { ImageTile, ImageUploadField } from "@/components/image-upload-field";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -22,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { IMAGE_CONTENT_TYPES } from "@/lib/utils/image";
 import { s3KeyToUrl } from "@/lib/utils/url";
 import type { ProductImages } from "@/modules/products/admin/hooks/use-product-images";
 import type { ProductFormValues } from "@/modules/products/schemas";
@@ -33,10 +28,12 @@ import type { ProductFormValues } from "@/modules/products/schemas";
  * a file still on its way, which is not a form value and never will be unless
  * it arrives.
  *
- * **Every decision here was made in `useProductImages`.** This file picks a
- * file, shows a preview, draws a bar and offers three buttons; the hook owns
- * what any of that means, because a `.tsx` holds render logic and nothing else
- * (`docs/CONVENTIONS.md`).
+ * **The picker, the spec panel and the pending tiles are not here.** They are
+ * `components/image-upload-field.tsx`, shared with the Category uploader
+ * (ADR-0021); what this file keeps is what is a rule about a Product — the alt
+ * text a screen reader will read, the Variant an Image shows, and the "Capa"
+ * badge on the first of them. The saved tiles are handed to the field as
+ * children, so both kinds sit in one grid.
  *
  * The order of the tiles is the order the shop renders: `position` is derived
  * from the array index at write time and is never sent, so arranging is a
@@ -60,15 +57,19 @@ export function ImageFields({
 
   return (
     <div className="flex flex-col gap-4">
-      {images.fields.length === 0 && images.uploads.length === 0 && (
+      {images.fields.length === 0 && images.upload.uploads.length === 0 && (
         <p className="text-muted-foreground text-sm">
           Nenhuma imagem. A primeira da lista é a que aparece na vitrine.
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ImageUploadField
+        id="product-images"
+        label="Adicionar imagens"
+        multiple
+        upload={images.upload}>
         {images.fields.map((field, index) => (
-          <ImageTile
+          <ProductImageTile
             key={field.tileId}
             control={control}
             index={index}
@@ -80,106 +81,17 @@ export function ImageFields({
             onRemove={() => images.removeImage(index)}
           />
         ))}
-
-        {/* Always after the saved tiles: a file that is still going up has no
-            place in the order until it has a key to hold that place. */}
-        {images.uploads.map((upload) => (
-          <div
-            key={upload.id}
-            className="bg-muted/30 flex flex-col gap-3 rounded-lg border p-3">
-            <ImagePreview src={upload.previewUrl} muted />
-
-            <p className="truncate text-xs" title={upload.fileName}>
-              {upload.fileName}
-            </p>
-
-            {upload.error ? (
-              <>
-                {/* The tile owns this failure. The S3 PUT is not a mutation,
-                    so the global net never sees it, and a toast is the wrong
-                    surface for something with a per-file recovery (ADR-0018). */}
-                <p className="text-destructive text-sm">{upload.error}</p>
-
-                <div className="flex flex-wrap gap-2">
-                  {upload.retryable && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => images.retry(upload.id)}>
-                      <RotateCcwIcon data-icon="inline-start" />
-                      Tentar novamente
-                    </Button>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => images.cancel(upload.id)}>
-                    Remover
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(upload.progress * 100)}
-                  aria-label={`Enviando ${upload.fileName}`}
-                  className="bg-muted h-2 w-full overflow-hidden rounded-full">
-                  {/* Determinate, and inline because the width is the datum. */}
-                  <div
-                    className="bg-primary h-full transition-[width] duration-150"
-                    style={{ width: `${Math.round(upload.progress * 100)}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground text-xs">
-                    Enviando… {Math.round(upload.progress * 100)}%
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => images.cancel(upload.id)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <Field>
-        <FieldLabel htmlFor="product-images">Adicionar imagens</FieldLabel>
-        <Input
-          id="product-images"
-          type="file"
-          multiple
-          accept={IMAGE_CONTENT_TYPES.join(",")}
-          onChange={(event) => {
-            images.select(Array.from(event.target.files ?? []));
-            // The same photograph, picked again after it was removed, is a
-            // change the input would not report otherwise.
-            event.target.value = "";
-          }}
-        />
-      </Field>
+      </ImageUploadField>
     </div>
   );
 }
 
 /**
  * One Image the form holds: the photograph, the alt text a screen reader will
- * read, and which Variant it shows.
+ * read, and which Variant it shows. The tile itself is the shared one; what is
+ * inside it is everything a Category picture does not have.
  */
-function ImageTile({
+function ProductImageTile({
   control,
   index,
   s3Key,
@@ -204,17 +116,17 @@ function ImageTile({
   const { errors } = useFormState({ control, name: `images.${index}.s3Key` });
 
   return (
-    <div className="bg-muted/30 flex flex-col gap-3 rounded-lg border p-3">
-      <div className="relative">
-        <ImagePreview src={s3KeyToUrl(s3Key)} />
-
-        {index === 0 && (
+    <ImageTile
+      src={s3KeyToUrl(s3Key)}
+      badge={
+        // A position and never a flag (`CONTEXT.md`): the first Image *is* the
+        // Cover, which is why reordering is what changes it.
+        index === 0 && (
           <span className="bg-primary text-primary-foreground absolute top-2 left-2 rounded-full px-2 py-0.5 text-xs font-medium">
             Capa
           </span>
-        )}
-      </div>
-
+        )
+      }>
       <FieldError errors={[errors.images?.[index]?.s3Key]} />
 
       <Controller
@@ -307,31 +219,6 @@ function ImageTile({
           Remover
         </Button>
       </div>
-    </div>
-  );
-}
-
-/**
- * The photograph itself. A plain `img`: the source is either a `blob:` URL,
- * which the optimizer cannot fetch, or a bucket object shown at thumbnail size
- * on a page only an Admin opens — neither is a job for `next/image`. The asset
- * host is in `remotePatterns` now that the shop renders through the optimizer
- * (ADR-0021), which changes nothing here: a `blob:` URL still cannot go
- * through it, and the tile still does not need to.
- *
- * `alt=""` because it is decorative *here*: the field below it is where the
- * Admin writes what the photograph shows, and reading a filename aloud would
- * announce something the shopper will never hear.
- */
-function ImagePreview({ src, muted }: { src: string; muted?: boolean }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      className={`bg-background aspect-square w-full rounded-md border object-cover${
-        muted ? " opacity-60" : ""
-      }`}
-    />
+    </ImageTile>
   );
 }
