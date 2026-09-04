@@ -30,6 +30,7 @@ const COLUMNS = [
   { header: "Estoque", bar: "w-10 ml-auto" },
   { header: "Avaliação", bar: "w-12" },
   { header: "Criado em", bar: "w-20" },
+  { header: "Ações", bar: "w-24 ml-auto" },
 ];
 
 const ROWS = 8;

@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/utils/date";
 import { formatRating } from "@/lib/utils/format";
 import { buildPageHref } from "@/lib/utils/pagination";
 import { buildSortHref } from "@/lib/utils/sort";
+import { ProductRowActions } from "@/modules/products/admin/components/product-row-actions";
 import type { ProductListInput } from "@/modules/products/admin/schemas";
 import {
   PRODUCT_SORT_DEFAULTS,
@@ -29,7 +30,7 @@ import {
 import { useTRPC } from "@/trpc/client";
 
 /** Kept beside the header row it counts: `EmptyRow` has to span the table. */
-const COLUMN_COUNT = 8;
+const COLUMN_COUNT = 9;
 
 /**
  * Typed as a key of the list input, so a typo stops compiling instead of
@@ -103,6 +104,7 @@ export function ProductTable({ input }: { input: ProductListInput }) {
                 order={input.sortOrder}>
                 Criado em
               </SortHeader>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -166,6 +168,14 @@ export function ProductTable({ input }: { input: ProductListInput }) {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(product.createdAt)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {/* Two scalars, never the row: the actions need an id and
+                        a status to decide what they offer, and nothing else. */}
+                    <ProductRowActions
+                      id={product.id}
+                      status={product.status}
+                    />
                   </TableCell>
                 </TableRow>
               ))
