@@ -179,24 +179,25 @@ export const adminRouter = createTRPCRouter({
           ),
         );
 
+      // Only the SKUs *other* Products hold are a question for the database.
+      // Two rows of this same form sharing one is a payload the schema already
+      // refuses — in the browser and again through `.input()` — so there is no
+      // rule left here, only the lookup that no pure function could answer.
       const takenSkus = new Set(rows.map((row) => row.sku));
+      const index = input.variants.findIndex((variant) =>
+        takenSkus.has(variant.sku),
+      );
 
-      input.variants.forEach((variant, index) => {
-        if (takenSkus.has(variant.sku)) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: `O SKU ${variant.sku} já está em uso.`,
-            // The path React Hook Form registered the input under, so the
-            // message lands on the row that caused it rather than on the
-            // section heading above it.
-            cause: new FieldError(`variants.${index}.sku`),
-          });
-        }
-
-        // Adding as it goes also catches two rows of this same form sharing a
-        // SKU, which the unique index would otherwise refuse as a 500.
-        takenSkus.add(variant.sku);
-      });
+      if (index !== -1) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `O SKU ${input.variants[index].sku} já está em uso.`,
+          // The path React Hook Form registered the input under, so the
+          // message lands on the row that caused it rather than on the
+          // section heading above it.
+          cause: new FieldError(`variants.${index}.sku`),
+        });
+      }
 
       const [created] = await tx
         .insert(product)

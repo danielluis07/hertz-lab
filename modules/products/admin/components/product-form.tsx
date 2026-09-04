@@ -1,11 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Controller,
   useForm,
   useWatch,
+  type Control,
+  type FieldPathByValue,
   type UseFormReturn,
 } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,74 @@ export type ProductFormSubmit = (
 ) => void;
 
 /**
+ * The two option sets the route reads per request and hands down. They travel
+ * together from `page.tsx` through the wrapper to the body, so they are one
+ * type rather than two prop declarations repeated at each stop.
+ */
+export type ProductFormOptions = {
+  brands: RouterOutput["brands"]["admin"]["options"];
+  categories: RouterOutput["categories"]["admin"]["options"];
+};
+
+/**
+ * A select over another module's rows — the Brand and the Category, which are
+ * the same control twice over `{ id, name }` arrays the route read for it.
+ *
+ * The form's empty value is `""`, which is what `productSchema` refuses, while
+ * the control's is `null`; the two conversions below are that difference and
+ * nothing more. `SelectValue` takes a function because Base UI renders the raw
+ * value otherwise, and an Admin should read "Sony", not an id.
+ */
+function OptionsField({
+  control,
+  name,
+  label,
+  placeholder,
+  options,
+}: {
+  control: Control<ProductFormValues>;
+  name: FieldPathByValue<ProductFormValues, string>;
+  label: string;
+  placeholder: string;
+  options: readonly { id: string; name: string }[];
+}) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+          <Select
+            value={field.value || null}
+            onValueChange={(next: string | null) => field.onChange(next ?? "")}>
+            <SelectTrigger
+              id={field.name}
+              className="w-full"
+              aria-invalid={fieldState.invalid}>
+              <SelectValue>
+                {(selected: string | null) =>
+                  options.find((option) => option.id === selected)?.name ??
+                  placeholder
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError errors={[fieldState.error]} />
+        </Field>
+      )}
+    />
+  );
+}
+
+/**
  * **One body, and its owners are thin.** This renders every field of a
  * Product; the create and edit wrappers differ only in which hook they fire
  * and where they navigate afterwards (ADR-0019). A `mode` prop branching in
@@ -72,13 +142,11 @@ export function ProductForm({
   submitLabel,
   brands,
   categories,
-}: {
+}: ProductFormOptions & {
   defaultValues: ProductFormValues;
   onSubmit: ProductFormSubmit;
   isPending: boolean;
   submitLabel: string;
-  brands: RouterOutput["brands"]["admin"]["options"];
-  categories: RouterOutput["categories"]["admin"]["options"];
 }) {
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -88,7 +156,6 @@ export function ProductForm({
   // `useWatch`, never `form.watch()`: the latter re-renders on every keystroke
   // of every field and opts this component out of the React Compiler.
   const name = useWatch({ control: form.control, name: "name" });
-  const hasTypedSlug = form.formState.dirtyFields.slug ?? false;
 
   /**
    * The slug follows the name while the Admin has not typed in it, so nobody
@@ -97,8 +164,13 @@ export function ProductForm({
    * mode: an empty slug is a Product that has never had a URL, while a filled
    * one is a public address (ADR-0005) that fixing a typo in the name must not
    * silently rewrite.
+   *
+   * Taking the field over is its own state and not `dirtyFields.slug`, which
+   * un-sets when a value returns to its default: an Admin who typed a slug and
+   * then cleared it would have the name start writing into it again.
    */
   const followsName = defaultValues.slug === "";
+  const [hasTypedSlug, setHasTypedSlug] = useState(false);
 
   useEffect(() => {
     if (!followsName || hasTypedSlug) return;
@@ -151,6 +223,10 @@ export function ProductForm({
                     <Input
                       {...field}
                       id={field.name}
+                      onChange={(event) => {
+                        setHasTypedSlug(true);
+                        field.onChange(event);
+                      }}
                       placeholder="fone-de-ouvido-bluetooth-xyz"
                       aria-invalid={fieldState.invalid}
                     />
@@ -181,77 +257,20 @@ export function ProductForm({
               />
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Controller
-                  name="brandId"
+                <OptionsField
                   control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>Marca</FieldLabel>
-                      {/* The control's empty value is null and the form's is
-                          "", which is what `productSchema` refuses. */}
-                      <Select
-                        value={field.value || null}
-                        onValueChange={(next: string | null) =>
-                          field.onChange(next ?? "")
-                        }>
-                        <SelectTrigger
-                          id={field.name}
-                          className="w-full"
-                          aria-invalid={fieldState.invalid}>
-                          <SelectValue>
-                            {(selected: string | null) =>
-                              brands.find((brand) => brand.id === selected)
-                                ?.name ?? "Selecione a marca"
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {brands.map((brand) => (
-                            <SelectItem key={brand.id} value={brand.id}>
-                              {brand.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
+                  name="brandId"
+                  label="Marca"
+                  placeholder="Selecione a marca"
+                  options={brands}
                 />
 
-                <Controller
-                  name="categoryId"
+                <OptionsField
                   control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>Categoria</FieldLabel>
-                      <Select
-                        value={field.value || null}
-                        onValueChange={(next: string | null) =>
-                          field.onChange(next ?? "")
-                        }>
-                        <SelectTrigger
-                          id={field.name}
-                          className="w-full"
-                          aria-invalid={fieldState.invalid}>
-                          <SelectValue>
-                            {(selected: string | null) =>
-                              categories.find(
-                                (category) => category.id === selected,
-                              )?.name ?? "Selecione a categoria"
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
+                  name="categoryId"
+                  label="Categoria"
+                  placeholder="Selecione a categoria"
+                  options={categories}
                 />
               </div>
             </FieldGroup>

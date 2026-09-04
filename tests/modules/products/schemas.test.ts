@@ -54,6 +54,73 @@ describe("productSchema.variants", () => {
   test("accepts a Product with one Variant", () => {
     expect(productSchema.safeParse(product).success).toBe(true);
   });
+
+  /**
+   * `product_variant.sku` is unique across the catalog, so two rows of one
+   * form sharing one would reach Postgres as a 500 rather than as something an
+   * Admin can fix. The claim is where the refusal lands: on the *second* row's
+   * own input.
+   */
+  test("refuses two Variants that share a SKU, on the second row", () => {
+    const result = productSchema.safeParse({
+      ...product,
+      variants: [variant, { ...variant, name: "Branco" }],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["variants", 1, "sku"]);
+    expect(result.error?.issues[0]?.message).toBe(
+      "Este SKU já foi usado em outra variação.",
+    );
+  });
+
+  test("accepts Variants whose SKUs differ", () => {
+    const result = productSchema.safeParse({
+      ...product,
+      variants: [variant, { ...variant, name: "Branco", sku: `${variant.sku}-BR` }],
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("productSchema.specifications", () => {
+  const specification = { label: "Impedância", value: "32 Ω" };
+
+  /**
+   * The `(product_id, label)` unique index, refused where the Admin can see it
+   * — the same claim as the SKU above, and the reason `create` inserts the
+   * array without a second check of its own.
+   */
+  test("refuses two Specifications that share a label, on the second row", () => {
+    const result = productSchema.safeParse({
+      ...product,
+      specifications: [specification, { ...specification, value: "16 Ω" }],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "specifications",
+      1,
+      "label",
+    ]);
+    expect(result.error?.issues[0]?.message).toBe(
+      "Já existe uma especificação com este nome.",
+    );
+  });
+
+  /**
+   * The index is exact, so these are two rows the database accepts. Refusing
+   * them here would enforce a stricter rule than the one being protected.
+   */
+  test("accepts labels that differ only in case", () => {
+    const result = productSchema.safeParse({
+      ...product,
+      specifications: [specification, { label: "impedância", value: "16 Ω" }],
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("productImageSchema.altText", () => {

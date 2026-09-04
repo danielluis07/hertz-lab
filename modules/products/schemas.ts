@@ -85,6 +85,39 @@ export const productImageSchema = z.object({
   variantId: z.int().min(0).nullable(),
 });
 
+/**
+ * The check both child arrays share: no two rows may repeat one field's value.
+ * The refusal lands on the **second** row's own input rather than on the array
+ * above it, so the Admin fixes the duplicate and not the original.
+ *
+ * Blank values are skipped — the field's own `min(1)` already refuses them,
+ * and two empty boxes are one mistake, not two.
+ */
+function duplicateRows<TField extends string>(
+  field: TField,
+  message: string,
+): z.core.CheckFn<Record<TField, string>[]> {
+  return ({ value, issues }) => {
+    const seen = new Set<string>();
+
+    value.forEach((row, index) => {
+      if (!row[field]) return;
+
+      if (seen.has(row[field])) {
+        issues.push({
+          code: "custom",
+          input: row[field],
+          path: [index, field],
+          message,
+        });
+        return;
+      }
+
+      seen.add(row[field]);
+    });
+  };
+}
+
 export const productSchema = z.object({
   name: z.string().trim().min(1, "Informe o nome do produto."),
   // A slug is a public URL (ADR-0005). On create it prefills from the name
@@ -97,8 +130,23 @@ export const productSchema = z.object({
   // only one thing to buy — nobody could buy a Product with none.
   variants: z
     .array(variantSchema)
-    .min(1, "Um produto precisa de ao menos uma variação."),
-  specifications: z.array(specificationSchema),
+    .min(1, "Um produto precisa de ao menos uma variação.")
+    // `product_variant.sku` is unique across the whole catalog, so two rows of
+    // one form sharing one is refused here rather than by Postgres: a
+    // constraint violation is a 500 and a generic toast, and this is a typo
+    // the Admin can see. Uniqueness *against other Products* still needs a
+    // query, and `create` runs it.
+    .check(duplicateRows("sku", "Este SKU já foi usado em outra variação.")),
+  // The `(product_id, label)` unique index, checked the same way and for the
+  // same reason — two rows both labelled "Impedância" are a mistake, not a
+  // 500. Exact comparison, because that index is exact too: "Peso" and "peso"
+  // are two rows the database accepts, and refusing them here would be a
+  // stricter rule than the one being enforced.
+  specifications: z
+    .array(specificationSchema)
+    .check(
+      duplicateRows("label", "Já existe uma especificação com este nome."),
+    ),
   images: z.array(productImageSchema),
 });
 

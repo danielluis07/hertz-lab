@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import type { Path } from "react-hook-form";
 import {
   ProductForm,
+  type ProductFormOptions,
   type ProductFormSubmit,
 } from "@/modules/products/admin/components/product-form";
 import { useCreateProduct } from "@/modules/products/admin/hooks/use-create-product";
 import { NEW_PRODUCT } from "@/modules/products/constants";
 import type { ProductFormValues } from "@/modules/products/schemas";
-import type { RouterOutput } from "@/trpc/routers/_app";
 
 /**
  * The form body's first owner. It is thin on purpose (ADR-0019): which hook
@@ -23,13 +23,7 @@ import type { RouterOutput } from "@/trpc/routers/_app";
  * arrival, so a `refresh()` after it would be a second render of the page just
  * rendered.
  */
-export function ProductCreateForm({
-  brands,
-  categories,
-}: {
-  brands: RouterOutput["brands"]["admin"]["options"];
-  categories: RouterOutput["categories"]["admin"]["options"];
-}) {
+export function ProductCreateForm({ brands, categories }: ProductFormOptions) {
   const router = useRouter();
   const createProduct = useCreateProduct();
 
