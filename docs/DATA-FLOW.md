@@ -208,16 +208,22 @@ All eight admin lists are the same four pieces, and ADR-0016 fixes which of
 them are shared:
 
 ```tsx
-// modules/products/admin/components/product-table.tsx — a server component
+// app/(admin)/admin/products/page.tsx
 <div className="group">
-  <h1>Produtos</h1>                                    // the page's own heading
-  <FilterBar filters={PRODUCT_FILTERS} input={input} />  // shared, config-driven
-  <TableShell>
-    <Table>…</Table>                                   // markup this module owns
-  </TableShell>
-  <PaginationNav paramKey="page" … />                   // shared, already global
+  <h1>Produtos</h1>                                     // the page's own heading
+  <FilterBar filters={productFilters({ … })} input={input} />  // shared, declared
+  <div className="group-has-data-pending:opacity-50">    // the dimming, one place
+    <Suspense fallback={<ProductTableSkeleton />}>
+      <ProductTable input={input} />                     // markup this module owns
+    </Suspense>                                          // …and <PaginationNav>
+  </div>
 </div>
 ```
+
+The bar sits in `page.tsx` and **outside** the Suspense boundary: it is part of
+the shell an Admin gets immediately, and a filter change must never replace the
+control that made it. The dimming class is on the wrapper around the boundary,
+so exactly one element in the tree knows about `data-pending`.
 
 **The filter bar is the only client component on the page** — with one
 exception the exemplar found: a list whose rows carry a **status action**
@@ -251,13 +257,32 @@ component — `components/filter-bar.tsx` — owns every filter write on every a
 list, and the module supplies only a **spec**:
 
 ```tsx
-const PRODUCT_FILTERS: readonly FilterSpec<ProductListInput>[] = [
-  { kind: "search", placeholder: "Buscar produtos..." },
-  { kind: "select", key: "status", label: "Status", options: PRODUCT_STATUS_OPTIONS },
-  { kind: "select", key: "categoryId", label: "Categoria", options: CATEGORY_OPTIONS },
-  { kind: "select", key: "brandId", label: "Marca", options: BRAND_OPTIONS },
-];
+// modules/products/admin/constants.ts
+function productFilters({ brands, categories }): readonly FilterSpec<ProductListInput>[] {
+  return [
+    { kind: "search", key: "search", placeholder: "Buscar por nome ou descrição..." },
+    { kind: "select", key: "status", label: "Status",
+      allLabel: "Todos os status", options: PRODUCT_STATUS_OPTIONS },
+    { kind: "select", key: "brandId", label: "Marca",
+      allLabel: "Todas as marcas", options: brands.map(…) },
+    { kind: "select", key: "categoryId", label: "Categoria",
+      allLabel: "Todas as categorias", options: categories.map(…) },
+  ];
+}
 ```
+
+**A function, not a constant**, and that is the one correction the exemplar made
+to this section: two of the four filters are *rows*. Brand and Category options
+are read per request by the composing route below, so they cannot be frozen into
+a module constant — and taking them as an argument is what keeps the mapping
+from `{ id, name }` to `{ value, label }` out of `page.tsx`, which composes and
+nothing more. A surface whose filters are all static declares a constant.
+
+`allLabel` is the "no filter" option's pt-BR copy, and it is in the spec rather
+than in the bar because `Todas as marcas` and `Todos os status` do not agree on
+gender: a shared component holding one `"Todos"` would be wrong half the time.
+The search box carries a `key` for the same reason every other control does —
+the parameter name is the surface's, never the bar's (ADR-0005).
 
 The spec is **data**, which is why it can be shared at all: it crosses the
 server/client boundary as an ordinary prop, so the table beside it stays a

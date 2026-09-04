@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { buildFilterHref } from "@/lib/utils/filter";
 
 /**
  * Read and write one query parameter as component state, **debounced**.
@@ -22,9 +23,10 @@ import { useDebounce } from "@/hooks/use-debounce";
  *
  * The parameter name is the caller's: ADR-0005 gives public routes Portuguese
  * parameters (`busca`, `pagina`, `marca`) and admin routes English ones, so
- * this hook stays ignorant of which vocabulary it is serving. Modules wrap it
- * and own their own names — and the wrapper, not the component, is where
- * "a filter change drops the page" lives.
+ * this hook stays ignorant of which vocabulary it is serving. Its one caller is
+ * `components/filter-bar.tsx`, which passes the surface's own parameter name
+ * and the page key every filter change drops — ADR-0016 put that rule there,
+ * so no module wraps this hook and no list has a filter hook of its own.
  *
  * Any component calling this needs a `<Suspense>` boundary above it on a
  * prerendered route, or the production build fails — `useSearchParams` opts the
@@ -85,23 +87,16 @@ export function useQueryParam(
 
     if (committed === paramValue) return;
 
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (committed) {
-      params.set(key, committed);
-    } else {
-      params.delete(key);
-    }
-
-    for (const resetKey of resetKeysToken ? resetKeysToken.split(",") : []) {
-      params.delete(resetKey);
-    }
+    const href = buildFilterHref({
+      pathname,
+      searchParams,
+      key,
+      value: committed,
+      resetKeys: resetKeysToken ? resetKeysToken.split(",") : [],
+    });
 
     startTransition(() => {
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      });
+      router.replace(href, { scroll: false });
     });
   }, [
     value,
