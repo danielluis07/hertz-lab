@@ -25,25 +25,28 @@ modules/products/
   constants.ts        page size, sort defaults, status options
   server/
     router.ts         createTRPCRouter({ admin: adminRouter })
-    admin.ts          list · byId · create · update · publish · archive · createImageUpload
+    admin.ts          list · byId · create · update · publish · archive
+                      createImageUpload · discardImageUpload
+    queries.ts        the slug and SKU lookups create and update share
     rating.ts         recalculateProductRating — called by reviews (ADR-0020)
   admin/
     schemas.ts        the list params schema (ADR-0014)
     filters.ts        the FilterBar spec
-    components/       9 files
-    hooks/            5 files
+    form-values.ts    byId's aggregate as the form's defaultValues
+    upload.ts         putWithProgress — the XHR ADR-0018 forces
+    components/       10 files
+    hooks/            7 files
 ```
 
 **No `types.ts`** — every type infers, from Zod or from `RouterOutput`.
-**No `server/queries.ts`** — ADR-0010 creates it on the second caller, and there
-is not one. **No `components/` or `hooks/` at the module root** — nothing is
+**No `components/` or `hooks/` at the module root** — nothing is
 shared across audiences yet. **No `shop/`, no `server/shop.ts`** — the shop's
 surfaces are out of this map's scope, and the anatomy is lazy: they appear when
 something needs them.
 
 ## Procedures
 
-All seven are `adminProcedure` (`trpc/init.ts`), composed as
+All eight are `adminProcedure` (`trpc/init.ts`), composed as
 `trpc.products.admin.*`. `docs/MODULES.md` nests the audience inside `server/`,
 which also gives invalidation its hierarchy: `trpc.products.pathFilter()`
 reaches both audiences, `trpc.products.admin` reaches one.
@@ -157,7 +160,7 @@ go live by accident.
 ### `createImageUpload`
 
 ```ts
-.input(z.object({ contentType: z.string(), size: z.number().int().positive() }))
+.input(imageUploadSchema)               // { contentType, size }, modules/products/schemas.ts
 .mutation(): Promise<{ key: string; url: string }>
 ```
 
@@ -166,6 +169,37 @@ escape the prefix, and presigns a PUT. The browser uploads with
 `XMLHttpRequest` for determinate progress; `create` and `update` `stat` every
 key they are given, which is the real size and type guard and also catches a key
 that was never uploaded.
+
+**Neither half of the input binds anything into the signature**, and the second
+half is a correction to what ADR-0018 implied. `presign` has no
+`content-length-range`, which that ADR says; it also signs no `Content-Type`
+header on a query-signed URL, so S3 accepts a PUT whose header contradicts the
+one the URL was minted for — verified against the bucket. The `type` option
+decides what the stored object will be *called*, and the `stat` decides whether
+the write accepts it.
+
+### `discardImageUpload`
+
+```ts
+.input(z.object({ key: z.string() }))
+.mutation(): Promise<{ discarded: boolean }>
+```
+
+The object behind a tile removed before the Product was ever saved with it —
+"removing an image from the form deletes its object then and there", which
+ADR-0018 decided and left without a name. **Not in that ADR's procedure list,
+and needed by its own decision**: a browser cannot delete an S3 object, and
+`createImageUpload` mints a URL for one verb.
+
+Two things keep an admin-only delete-by-key narrow. The key must match the
+shape this app mints (`isProductImageKey`), so nothing walks out of the prefix;
+and **a key any `product_image` row references is refused**, which confines it
+to uploads that were never persisted — a persisted Image's object dies with the
+`update` that drops its key.
+
+It never throws for a failed delete. The Admin asked to remove a tile, not to
+clean a bucket, and what is left behind is exactly the orphan ADR-0018
+tolerates.
 
 ### `server/rating.ts` — not a procedure
 
@@ -301,7 +335,7 @@ Nine components, all in `modules/products/admin/components/`.
 | `product-edit-form.tsx` | client | `product-form` |
 | `variant-fields.tsx` | client | `useFieldArray` |
 | `specification-fields.tsx` | client | `useFieldArray` |
-| `product-image-field.tsx` | client | `useFieldArray`, `useCreateImageUpload` |
+| `image-fields.tsx` | client | `useProductImages`, the tiles and their bars |
 
 The table owns its markup and its columns, and shares everything whose
 declaration is **data** — ADR-0016's test. Its skeleton is a sibling file, not a
@@ -334,12 +368,24 @@ out of the React Compiler.
 
 ## Hooks
 
-Five, in `modules/products/admin/hooks/`, one per write, named for the verb:
-`use-create-product`, `use-update-product`, `use-publish-product`,
-`use-archive-product`, `use-create-image-upload`.
+Seven, in `modules/products/admin/hooks/`. Five are one per write, named for
+the verb: `use-create-product`, `use-update-product`, `use-publish-product`,
+`use-archive-product`, `use-create-image-upload`, and
+`use-discard-image-upload`.
 
-Each owns exactly two things — **invalidation and the success toast** — and
-nothing else:
+`use-product-images` is the exception, and the exception is ADR-0018's. It owns
+the images field array *and* the files still going up to it — pick, check,
+presign, PUT, append, retry, reorder, remove — because that is rule and
+sequence, which a `.tsx` may not hold. `product-form.tsx` calls it rather than
+`image-fields.tsx`, because the submit button is its second reader: submit is
+disabled while any upload is in flight.
+
+The two upload hooks own **neither** of the two things below. There is nothing
+to invalidate — minting a URL changes no row — and a success toast per
+photograph, on a form where six is normal, is noise.
+
+Every other hook owns exactly two things — **invalidation and the success
+toast** — and nothing else:
 
 ```ts
 return useMutation(
@@ -374,7 +420,7 @@ There is **no `useProductFilters` hook**. ADR-0016 put every filter write inside
 
 ## Tests
 
-Three files, and ADR-0017 is what makes the list short: a test follows a rule.
+Four files, and ADR-0017 is what makes the list short: a test follows a rule.
 
 - `tests/modules/products/status.test.ts` — the transition rule. Which of
   publish and archive is legal from each of the three statuses.
@@ -382,9 +428,14 @@ Three files, and ADR-0017 is what makes the list short: a test follows a rule.
   `parse` cannot throw, garbage becomes defaults, unknown keys are stripped, an
   array value falls to its default, and each `sortBy` gets its own default
   direction.
+- `tests/modules/products/admin/form-values.test.ts` — that an Image names its
+  Variant by index and that the aggregate round-trips into values the write's
+  own schema accepts (ADR-0019).
 - `tests/modules/products/schemas.test.ts` — **narrowly**: `variants.min(1)`
-  (`CONTEXT.md`: every Product has at least one Variant) and `altText` non-empty
-  (ADR-0018). Not `name.min(1)`; that tests Zod.
+  (`CONTEXT.md`: every Product has at least one Variant), the two duplicate-row
+  refusals, `altText` non-empty, and the upload's own rules — what may be
+  uploaded and how big, and that a key from a client is recognised as one this
+  app minted or refused (ADR-0018). Not `name.min(1)`; that tests Zod.
 
 Not tested, and both because a rule already made it so: **`server/`** — every
 procedure here, the nested write included, which ADR-0017 rejects **by name**;
@@ -400,13 +451,20 @@ trigger is CI and only CI.
 Worth stating, because the other eight will be tempted:
 
 - **No `types.ts`.** Everything infers.
-- **No `server/queries.ts`.** ADR-0010 wants a second caller first.
-- **No repository, no service layer.** Same ADR: Drizzle's relational builder is
-  the query layer.
+- **No repository, no service layer.** ADR-0010: Drizzle's relational builder is
+  the query layer, and `server/queries.ts` holds the two lookups `create` and
+  `update` both ask — arguments in, rows out, and it arrived with the second
+  caller rather than before one.
 - **No optimistic updates.** App-wide, ADR-0012's file.
+- **No `reorder` procedure.** Arranging the images is a client-side array move,
+  saved by the same submit as everything else; `position` is derived from the
+  index at write time and never sent (ADR-0018).
+- **No orphan sweep, and no `pending/` prefix.** ADR-0018 tolerates the orphans
+  an abandoned form leaves. The reopening trigger is a scheduled runner.
 - **No `remove`.** A Product archives; `docs/MODULES.md` notes that `delete` is
-  usually a lie in this domain. The only `remove`-shaped acts here are a Variant
-  or a Specification leaving a form array, which is a field edit and not a write.
+  usually a lie in this domain. The only `remove`-shaped acts here are a
+  Variant, a Specification or an Image leaving a form array, which is a field
+  edit and not a write — `discardImageUpload` deletes an object, never a row.
 - **No confirmation dialog.** Nothing this module does is un-undoable from the
   same screen — archive is reversible by filtering, and removing an Image is a
   field edit (ADR-0018).

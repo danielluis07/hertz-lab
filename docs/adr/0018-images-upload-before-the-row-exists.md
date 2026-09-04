@@ -178,3 +178,30 @@ this decision makes impossible, and has been corrected.
 
 **Storage grows with abandoned forms.** Named here so it is found as a decision
 rather than rediscovered as a bug.
+
+## Amendments, from building it
+
+**The signed `Content-Type` is not a guard.** The Context above says `presign`
+"optionally bind[s] `Content-Type` through `type`", and set beside the sentence
+about size it reads as though the type, at least, were enforced. It is not: a
+query-signed URL carries no `Content-Type` among its signed headers, so S3
+accepts a PUT whose header contradicts the one the URL was minted for, and
+accepts one that sends no header at all. Both were tried against the bucket.
+
+Nothing in the Decision changes, because the Decision never rested on it —
+"the write is the real guard" already covers the type as well as the size, and
+`stat` is what refuses an object that is neither. What changes is the reading:
+the `type` option names what the object will be *called*, and that is all.
+
+**Removal needed a procedure, and this ADR did not name one.** "Removing an
+image from the form deletes its object then and there" cannot be done by a
+browser, and `createImageUpload` signs one verb. So there is a second
+procedure, `products.admin.discardImageUpload`, taking the key back.
+
+It is narrow by construction, which is what makes an admin-only delete-by-key
+acceptable: the key must match the shape this app mints, and **a key any
+`product_image` row references is refused** — so it reaches uploads that were
+never persisted and nothing else. A persisted Image's object still dies with
+the `update` that drops its key, exactly as decided above. It also never throws
+for a failed delete: the Admin asked to remove a tile, not to clean a bucket,
+and what a failure leaves behind is the orphan this ADR already tolerates.
