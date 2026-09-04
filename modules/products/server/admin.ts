@@ -18,6 +18,12 @@ import {
   productVariant,
 } from "@/db/schema";
 import { client } from "@/lib/s3";
+import {
+  imageUploadSchema,
+  IMAGE_CONTENT_TYPES,
+  IMAGE_EXTENSIONS,
+  IMAGE_MAX_BYTES,
+} from "@/lib/utils/image";
 import { adminProcedure, createTRPCRouter, FieldError } from "@/trpc/init";
 import { productListParamsSchema } from "@/modules/products/admin/schemas";
 import {
@@ -26,13 +32,10 @@ import {
   type ProductStatus,
 } from "@/modules/products/constants";
 import {
-  imageUploadSchema,
   isProductImageKey,
-  PRODUCT_IMAGE_CONTENT_TYPES,
-  PRODUCT_IMAGE_EXTENSIONS,
-  PRODUCT_IMAGE_MAX_BYTES,
-  productSchema,
-} from "@/modules/products/schemas";
+  PRODUCT_IMAGE_PREFIX,
+} from "@/modules/products/images";
+import { productSchema } from "@/modules/products/schemas";
 import {
   findProductIdWithSlug,
   findSkusInUse,
@@ -87,11 +90,11 @@ const notFound = () => new TRPCError({ code: "NOT_FOUND" });
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 
 /** The same list the browser checks against, as the write reads it back off S3. */
-const ACCEPTED_IMAGE_TYPES = new Set<string>(PRODUCT_IMAGE_CONTENT_TYPES);
+const ACCEPTED_IMAGE_TYPES = new Set<string>(IMAGE_CONTENT_TYPES);
 
 /** How the size ceiling is said, in the two places that say it. */
 const OVERSIZED_IMAGE_MESSAGE = `A imagem deve ter no máximo ${
-  PRODUCT_IMAGE_MAX_BYTES / 1024 / 1024
+  IMAGE_MAX_BYTES / 1024 / 1024
 } MB.`;
 
 /**
@@ -143,7 +146,7 @@ async function assertImagesUploaded(
         );
       }
 
-      if (stat.size > PRODUCT_IMAGE_MAX_BYTES) throw refuse(OVERSIZED_IMAGE_MESSAGE);
+      if (stat.size > IMAGE_MAX_BYTES) throw refuse(OVERSIZED_IMAGE_MESSAGE);
 
       if (!ACCEPTED_IMAGE_TYPES.has(stat.type)) {
         throw refuse("Envie uma imagem JPEG, PNG, WebP ou AVIF.");
@@ -832,8 +835,8 @@ export const adminRouter = createTRPCRouter({
   createImageUpload: adminProcedure
     .input(imageUploadSchema)
     .mutation(({ input }) => {
-      const key = `products/${Bun.randomUUIDv7()}.${
-        PRODUCT_IMAGE_EXTENSIONS[input.contentType]
+      const key = `${PRODUCT_IMAGE_PREFIX}/${Bun.randomUUIDv7()}.${
+        IMAGE_EXTENSIONS[input.contentType]
       }`;
 
       const url = client.presign(key, {

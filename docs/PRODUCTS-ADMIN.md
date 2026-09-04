@@ -205,7 +205,7 @@ go live by accident.
 ### `createImageUpload`
 
 ```ts
-.input(imageUploadSchema)               // { contentType, size }, modules/products/schemas.ts
+.input(imageUploadSchema)               // { contentType, size }, lib/utils/image.ts
 .mutation(): Promise<{ key: string; url: string }>
 ```
 
@@ -283,15 +283,22 @@ It serves the tRPC `.input()` **and** the React Hook Form resolver. One schema,
 one place — and the pt-BR messages are in it, so the sentence under a field is
 the sentence the procedure would have refused with.
 
-**The image upload's own vocabulary is in this file too**, which this file did
-not foresee and the build settled: `PRODUCT_IMAGE_CONTENT_TYPES`,
-`PRODUCT_IMAGE_MAX_BYTES`, `PRODUCT_IMAGE_EXTENSIONS`, `imageUploadSchema`,
-`checkImageUpload` and `isProductImageKey`. They are not in `constants.ts`
-because they *are* the schema — one list of accepted types and one ceiling
-serving `createImageUpload`'s `.input()`, the browser's pre-flight check and the
-write's `stat`, at once. `checkImageUpload` takes a `{ type, size }` rather than
-a `File`, which is what keeps the browser's vocabulary out of it and `bun test`
-inside.
+**The image upload's own vocabulary is not in this file**: it is
+`lib/utils/image.ts`, because none of it is a rule about a Product (ADR-0007,
+ADR-0021) and a Category is the second uploader. `IMAGE_CONTENT_TYPES`,
+`IMAGE_MAX_BYTES`, `IMAGE_EXTENSIONS`, `imageUploadSchema`, `checkImageUpload`,
+the dimension bounds with `checkImageDimensions`, and `imageKeyMatcher` live
+there — one list of accepted types and one ceiling serving
+`createImageUpload`'s `.input()`, the browser's pre-flight check and the write's
+`stat`, at once. Both checks take a `{ type, size }` and a `{ width, height }`
+rather than a `File`, which is what keeps the browser's vocabulary out of them
+and `bun test` inside.
+
+`modules/products/images.ts` is the module's half of that: the `products/`
+prefix, and `isProductImageKey` bound from `imageKeyMatcher` — one binding, so
+the prefix a key is minted under and the prefix it is checked against cannot
+become two answers. What stays in `schemas.ts` is what is a rule about a
+Product: alt text is required, and `variantId` is an index.
 
 `modules/products/admin/schemas.ts` — the **list params schema** and
 `parseProductListParams` beside it (ADR-0014). Its `.transform` resolves
