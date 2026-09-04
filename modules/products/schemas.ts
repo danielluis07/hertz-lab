@@ -86,6 +86,112 @@ export const productImageSchema = z.object({
 });
 
 /**
+ * **What may be uploaded, and how big.** ADR-0018 splits the validation: the
+ * browser checks these before asking for a URL, so a refusal is immediate and
+ * costs no round trip, and the write `stat`s the object as the real guard —
+ * `presign` signs one method and cannot cap a size, so a limit the client is
+ * told about is a limit only the client obeys.
+ *
+ * They live here rather than in `constants.ts` because they are the schema
+ * below, which is the tRPC `.input()` of `createImageUpload` and the tile's
+ * own check at once: one list of accepted types, one ceiling, one sentence.
+ */
+export const PRODUCT_IMAGE_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+] as const;
+
+export type ProductImageContentType = (typeof PRODUCT_IMAGE_CONTENT_TYPES)[number];
+
+/** 5 MB. A product photograph, not a print master. */
+export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The extension `createImageUpload` ends a minted key with. A map rather than
+ * a split of the MIME type: `image/jpeg` is `.jpg`, and `image/svg+xml` would
+ * be `.svg+xml`. Every accepted type has one, which is a claim the tests make.
+ */
+export const PRODUCT_IMAGE_EXTENSIONS: Record<ProductImageContentType, string> =
+  {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/avif": "avif",
+  };
+
+/**
+ * What `createImageUpload` takes. The `size` binds nothing into the signature
+ * — S3 caps a length only through a POST policy, which Bun's client does not
+ * write — so it is checked here for the Admin's sake and again by the `stat`
+ * the write runs.
+ */
+export const imageUploadSchema = z.object({
+  contentType: z.enum(PRODUCT_IMAGE_CONTENT_TYPES, {
+    error: "Envie uma imagem JPEG, PNG, WebP ou AVIF.",
+  }),
+  size: z
+    .int({ error: "Não foi possível ler este arquivo." })
+    .positive("Este arquivo está vazio.")
+    .max(
+      PRODUCT_IMAGE_MAX_BYTES,
+      `A imagem deve ter no máximo ${PRODUCT_IMAGE_MAX_BYTES / 1024 / 1024} MB.`,
+    ),
+});
+
+export type ImageUploadInput = z.infer<typeof imageUploadSchema>;
+
+/**
+ * The same rule, in the shape a tile can use: either the payload
+ * `createImageUpload` takes, or the one pt-BR sentence to render on the file
+ * that was refused.
+ *
+ * A `File` is a `{ type, size }` to this function and nothing more, which is
+ * what keeps the browser's vocabulary out of it and `bun test` inside.
+ */
+export type ImageUploadCheck =
+  | { accepted: true; upload: ImageUploadInput }
+  | { accepted: false; message: string };
+
+export function checkImageUpload(file: {
+  type: string;
+  size: number;
+}): ImageUploadCheck {
+  const result = imageUploadSchema.safeParse({
+    contentType: file.type,
+    size: file.size,
+  });
+
+  if (result.success) return { accepted: true, upload: result.data };
+
+  return {
+    accepted: false,
+    // The first issue, because a file is refused for one reason at a time and
+    // a tile has room for one sentence.
+    message: result.error.issues[0].message,
+  };
+}
+
+/**
+ * The shape of a key this app minted: `products/<uuidv7>.<ext>` (ADR-0018).
+ *
+ * `createImageUpload` mints every key server-side, so no client can name one —
+ * and this is what keeps that promise where a key travels the other way, in
+ * `discardImageUpload`'s input. A path that escapes the prefix, or an
+ * extension the uploader never writes, is not something this app put there.
+ */
+const PRODUCT_IMAGE_KEY_PATTERN = new RegExp(
+  `^products/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](?:${Object.values(
+    PRODUCT_IMAGE_EXTENSIONS,
+  ).join("|")})$`,
+);
+
+export function isProductImageKey(key: string): boolean {
+  return PRODUCT_IMAGE_KEY_PATTERN.test(key);
+}
+
+/**
  * The check both child arrays share: no two rows may repeat one field's value.
  * The refusal lands on the **second** row's own input rather than on the array
  * above it, so the Admin fixes the duplicate and not the original.
