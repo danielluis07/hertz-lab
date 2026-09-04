@@ -2,14 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
+import { checkImageUpload } from "@/lib/utils/image";
 import { variantIndexAfterRemoval } from "@/modules/products/admin/form-values";
 import { useCreateImageUpload } from "@/modules/products/admin/hooks/use-create-image-upload";
 import { useDiscardImageUpload } from "@/modules/products/admin/hooks/use-discard-image-upload";
 import { putWithProgress } from "@/modules/products/admin/upload";
-import {
-  checkImageUpload,
-  type ProductFormValues,
-} from "@/modules/products/schemas";
+import type { ProductFormValues } from "@/modules/products/schemas";
 
 /**
  * The images half of the Product form, as state (ADR-0018): the array React

@@ -22,12 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { IMAGE_CONTENT_TYPES } from "@/lib/utils/image";
 import { s3KeyToUrl } from "@/lib/utils/url";
 import type { ProductImages } from "@/modules/products/admin/hooks/use-product-images";
-import {
-  PRODUCT_IMAGE_CONTENT_TYPES,
-  type ProductFormValues,
-} from "@/modules/products/schemas";
+import type { ProductFormValues } from "@/modules/products/schemas";
 
 /**
  * The photographs, as tiles (ADR-0018). Two kinds sit side by side: an Image
@@ -164,7 +162,7 @@ export function ImageFields({
           id="product-images"
           type="file"
           multiple
-          accept={PRODUCT_IMAGE_CONTENT_TYPES.join(",")}
+          accept={IMAGE_CONTENT_TYPES.join(",")}
           onChange={(event) => {
             images.select(Array.from(event.target.files ?? []));
             // The same photograph, picked again after it was removed, is a

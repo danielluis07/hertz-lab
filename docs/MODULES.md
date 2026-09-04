@@ -45,8 +45,10 @@ entries** — every absence deliberate, none of them pending:
 | `components/`, `hooks/` at the root | nothing is shared across audiences yet |
 | `shop/`, `server/shop.ts` | the shop's surfaces are not built |
 
-What it has instead of `<concept>.ts` is `status.ts` — rule 4 in one file — and
-two files this shape did not predict, both in `admin/` and both pulling a rule
+What it has instead of `<concept>.ts` is `status.ts` and `images.ts` — rule 4
+in two files, the second holding the one thing a Product's photographs know
+that any image does not: the prefix they are minted under (ADR-0021) — and
+two more files this shape did not predict, both in `admin/` and both pulling a rule
 out of a `.tsx`: `filters.ts` (the `FilterBar` spec, a **function** because two
 of its four filters are rows a route reads per request) and `form-values.ts`
 (the aggregate turned into `defaultValues`, plus the index arithmetic an Image
