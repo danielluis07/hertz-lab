@@ -45,6 +45,17 @@ ordered, and that order is what the shop renders.
 **Specification** — one labelled row of a Product's technical sheet
 ("Impedância", "32 Ω"). Descriptive text for the shopper, not a filter facet.
 
+**Aggregate** — a Product together with the rows that only exist as part of it:
+its Variants, its Images and its Specifications. The Aggregate is the unit an
+Admin edits and the unit that is written — one form, one save, one transaction —
+and nothing inside it is addressable on its own. Brand and Category are *not*
+part of it: they are referenced, and they outlive any Product that names them.
+
+**Slug** — the words that identify a Product, a Brand or a Category in a public
+URL. A Slug is unique, it is chosen rather than derived, and it is not a name:
+renaming the thing leaves the Slug alone, because a Slug that changes breaks
+every link that was ever shared.
+
 ## Buying
 
 **Money** — every amount in Hertz Lab is Brazilian reais expressed in *cents*,

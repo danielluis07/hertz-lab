@@ -11,7 +11,7 @@ Which way a dependency between two modules may point is ADR-0009.
 ## Anatomy
 
 ```
-modules/products/
+modules/<name>/
   schemas.ts            # Zod — the entity's vocabulary
   types.ts              # only what has no inference source
   constants.ts          # module-owned values
@@ -35,6 +35,23 @@ modules/products/
 needs it and not before. A module with three pure rules and one form is three
 files and a folder; creating the other seven empty is how a convention becomes
 ceremony.
+
+`products` is the worked instance, and it is **the layout above minus five
+entries** — every absence deliberate, none of them pending:
+
+| Absent | Why |
+| --- | --- |
+| `types.ts` | everything infers, from Zod or from `RouterOutput` |
+| `components/`, `hooks/` at the root | nothing is shared across audiences yet |
+| `shop/`, `server/shop.ts` | the shop's surfaces are not built |
+
+What it has instead of `<concept>.ts` is `status.ts` — rule 4 in one file — and
+two files this shape did not predict, both in `admin/` and both pulling a rule
+out of a `.tsx`: `filters.ts` (the `FilterBar` spec, a **function** because two
+of its four filters are rows a route reads per request) and `form-values.ts`
+(the aggregate turned into `defaultValues`, plus the index arithmetic an Image
+needs when a Variant leaves the array). `admin/upload.ts` is a third, and it is
+ADR-0018's alone. See `docs/PRODUCTS-ADMIN.md`.
 
 Four rules give the layout:
 
@@ -109,7 +126,8 @@ reads as one.
 A module does not re-export raw Drizzle rows. `typeof products.$inferSelect` is
 the shape of a table, and what a caller actually receives is the shape of a
 procedure's return — so the exported type is
-`RouterOutput["products"]["list"][number]`. Types that track the storage rather
+`RouterOutput["products"]["admin"]["list"]["items"][number]`, audience and
+envelope included. Types that track the storage rather
 than the surface go stale silently the first time a procedure selects a subset.
 
 Form values come from Zod: `z.infer<typeof productSchema>`.
@@ -134,6 +152,13 @@ validator for the value it describes.
 
 Schemas only one audience speaks live in that audience's folder. An admin list's
 filter schema is an admin concern; a Product is not.
+
+**A root `schemas.ts` holds the entity's vocabulary, not only its entity.**
+`modules/products/schemas.ts` also holds what may be uploaded and how big, the
+key shape the uploader mints, and the two helpers over them — because those are
+that schema, serving a procedure's `.input()` and the browser's own check at
+once. A constant that is a schema's clause belongs beside the schema, not in
+`constants.ts`.
 
 ## The server half
 
@@ -160,8 +185,11 @@ giving `trpc.products.admin.list` and `trpc.products.shop.list`. This is rule 1
 again: an admin list is paginated and includes `draft` and `archived`, a shop
 list shows only `active` — different procedures, not one procedure with a flag.
 Nesting rather than naming them apart also gives invalidation a hierarchy for
-free, since TanStack Query matches key prefixes: `trpc.products.queryFilter()`
-reaches both audiences, `trpc.products.admin.queryFilter()` reaches one.
+free, since TanStack Query matches key prefixes: `trpc.products.pathFilter()`
+reaches both audiences, `trpc.products.admin.pathFilter()` reaches one.
+**`pathFilter`, not `queryFilter`** — the built hooks use it, and the difference
+is load-bearing: `queryFilter` needs an input to build a key from, which is
+exactly what a write does not have.
 
 The six single-audience modules — `checkout`, `cart`, `wishlist`, `payments`,
 `shipping-methods`, `auth` — get a flat `server/router.ts` and no nesting, the
@@ -281,16 +309,28 @@ tests/modules/products/admin/schemas.test.ts
 
 A module gains no `tests/` folder of its own; the anatomy above is unchanged.
 
-Worked through, the exemplar's whole suite is three files — `status.test.ts`,
-`admin/schemas.test.ts` and a **narrow** `schemas.test.ts` covering only the two
-clauses that are rules (`variants.min(1)`, `altText` non-empty) and not the
-`z.string().min(1)` beside them. See `docs/PRODUCTS-ADMIN.md`.
+Worked through, the exemplar's whole suite is **four** files — `status.test.ts`,
+`admin/schemas.test.ts`, `admin/form-values.test.ts` and a **narrow**
+`schemas.test.ts` covering only the clauses that are rules (`variants.min(1)`,
+the duplicate-row refusals, `altText` non-empty, and the upload's own rules) and
+not the `z.string().min(1)` beside them.
+
+The fourth file is the correction the build made to this count, and it belongs
+to the first clause rather than to the second: `admin/form-values.ts` turns an
+aggregate into `defaultValues` and answers where an Image's Variant *index*
+lands when that Variant leaves the array (ADR-0019). That is a pure rule that
+happens to live in an audience folder, because the vocabulary it is a rule about
+is the admin form's. **So "the module root, and only the module root" is the
+rule with one honest exception: a pure rule follows the vocabulary it speaks
+about.** See `docs/PRODUCTS-ADMIN.md`.
 
 ## The template
 
-`docs/PRODUCTS-ADMIN.md` specifies the **products** admin module end to end. It
+`docs/PRODUCTS-ADMIN.md` describes the **products** admin module end to end. It
 is the exemplar: products is the hardest surface in the store, so what survives
-it survives the other eight. This section is the part of it that generalises.
+it survives the other eight. This section is the part of it that generalises,
+and it has been checked against the built module rather than against the
+specification that preceded it (#30).
 
 **Every admin module has:**
 
@@ -310,9 +350,23 @@ it survives the other eight. This section is the part of it that generalises.
 - **The form triad** — a shared body (`<name>-form.tsx`) plus two thin owners
   (`<name>-create-form.tsx`, `<name>-edit-form.tsx`) that differ only in which
   hook they fire and where they navigate. A `mode` prop would be a rule in a
-  `.tsx`.
+  `.tsx`. The body's `onSubmit` takes `(values, form)`: the owner needs the form
+  back to turn `error.data.field` into `form.setError`, which is the one
+  call-site `onError` ADR-0013 leaves to the surface.
 - **One hook per write**, named for the verb, owning invalidation and the
-  success toast and nothing else. Navigation stays at the call site.
+  success toast and nothing else. Navigation stays at the call site. The
+  invalidation is `trpc.<module>.pathFilter()` — the **module**, not the
+  audience, because a write an Admin makes usually changes what a shopper sees.
+  A write that changes no row and has no surface to congratulate owns neither:
+  `createImageUpload` is the built instance.
+- **A list whose rows carry a status transition** adds
+  `<name>-row-actions.tsx` — a leaf client component taking an `id` and a
+  `status`, firing the domain verbs above. One hook instance is shared by every
+  row, so pending state is row-scoped:
+  `disabled={isPending && variables?.id === row.id}`.
+- **The list table is a client component** reading `useSuspenseQuery` against
+  the query its page prefetched (#31, and ADR-0016 carries the amendment). It
+  still owns its columns as markup and no row array crosses as a prop.
 - **Tests that follow rules only** — the pure `<concept>.ts` files and the
   rule-bearing schemas, and nothing in `server/` or `components/`.
 
@@ -329,6 +383,12 @@ surfaces and 5 create surfaces**: `reviews` is a list plus `moderate`, and
 `orders` and `customers` have no create. A module that needs no form skips the
 entire triad — it does not scaffold an empty one.
 
-**Products-only, and not to be copied by default:** nested child arrays at all,
-images (ADR-0018), and a denormalised column another module maintains
-(ADR-0004, ADR-0020). Most of the eight are a single table with a single form.
+**Products-only, and not to be copied by default:** nested child arrays at all
+and everything they drag in — `useFieldArray` field groups, the reconciling
+write, `admin/form-values.ts`; images and their whole apparatus
+(`admin/upload.ts`, `use-product-images`, the two upload hooks, the `stat`
+guard — ADR-0018); a denormalised column another module maintains (ADR-0004,
+ADR-0020); and `server/queries.ts`, which exists only because a second procedure
+asked the same question. Most of the eight are a single table with a single
+form, and for them the anatomy stops at `schemas.ts`, `constants.ts`,
+`server/admin.ts`, the triad and the hooks.
