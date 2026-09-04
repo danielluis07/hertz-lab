@@ -1,18 +1,25 @@
 import "server-only";
 
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
-import { brand, category, product, productVariant } from "@/db/schema";
-import { adminProcedure, createTRPCRouter } from "@/trpc/init";
+import {
+  brand,
+  category,
+  product,
+  productSpecification,
+  productVariant,
+} from "@/db/schema";
+import { adminProcedure, createTRPCRouter, FieldError } from "@/trpc/init";
 import { productListParamsSchema } from "@/modules/products/admin/schemas";
 import {
   PRODUCTS_PER_PAGE,
   type ProductSortField,
   type ProductStatus,
 } from "@/modules/products/constants";
+import { productSchema } from "@/modules/products/schemas";
 import { isArchivable, isPublishable } from "@/modules/products/status";
 
 /**
@@ -122,6 +129,123 @@ export const adminRouter = createTRPCRouter({
 
       return { items: rows, total: totalRow?.value ?? 0 };
     }),
+
+  /**
+   * Writes a whole Product — the row, its Variants and its Specifications — in
+   * **one transaction**, so an Admin cannot end up with half a listing and
+   * lose the rest. It takes the root `productSchema`, the same object the form
+   * validated against, and returns the new id for the call site to navigate
+   * to.
+   *
+   * **`status` is written unconditionally and is not in the payload.** A new
+   * Product is a `draft`, so an unfinished listing cannot reach the shop by
+   * accident; putting one on sale is `publish`, which is a different act
+   * (`docs/MODULES.md`, "Naming").
+   *
+   * Images are in the schema and not in this write. They arrive with the
+   * images slice, which resolves each tile's `variantId` **index** against the
+   * ids the Variant inserts below produce (ADR-0019).
+   */
+  create: adminProcedure.input(productSchema).mutation(async ({ input }) => {
+    return db.transaction(async (tx) => {
+      // Both uniques are checked before the write rather than caught after it:
+      // a constraint violation names a Postgres index, and what a form needs is
+      // the field that caused it. Read-then-write, so two Admins racing on the
+      // same slug can still collide on the index — the same trade the
+      // transitions below make, and the loser sees the generic pt-BR toast.
+      const [taken] = await tx
+        .select({ id: product.id })
+        .from(product)
+        .where(eq(product.slug, input.slug));
+
+      if (taken) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Já existe um produto com esta URL.",
+          // Lifted to `data.field` by the errorFormatter, which is what puts
+          // this sentence under the slug input and makes the global toast
+          // stand down (ADR-0013).
+          cause: new FieldError("slug"),
+        });
+      }
+
+      const rows = await tx
+        .select({ sku: productVariant.sku })
+        .from(productVariant)
+        .where(
+          inArray(
+            productVariant.sku,
+            input.variants.map((variant) => variant.sku),
+          ),
+        );
+
+      // Only the SKUs *other* Products hold are a question for the database.
+      // Two rows of this same form sharing one is a payload the schema already
+      // refuses — in the browser and again through `.input()` — so there is no
+      // rule left here, only the lookup that no pure function could answer.
+      const takenSkus = new Set(rows.map((row) => row.sku));
+      const index = input.variants.findIndex((variant) =>
+        takenSkus.has(variant.sku),
+      );
+
+      if (index !== -1) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `O SKU ${input.variants[index].sku} já está em uso.`,
+          // The path React Hook Form registered the input under, so the
+          // message lands on the row that caused it rather than on the
+          // section heading above it.
+          cause: new FieldError(`variants.${index}.sku`),
+        });
+      }
+
+      const [created] = await tx
+        .insert(product)
+        .values({
+          name: input.name,
+          slug: input.slug,
+          description: input.description,
+          brandId: input.brandId,
+          categoryId: input.categoryId,
+          status: "draft",
+        })
+        .returning({ id: product.id });
+
+      // The schema guarantees at least one Variant (`CONTEXT.md`), so this
+      // insert never runs empty. `position` is derived from the array index
+      // and never sent: the order the Admin arranged is the order that
+      // persists (ADR-0018).
+      await tx.insert(productVariant).values(
+        input.variants.map((variant, index) => ({
+          productId: created.id,
+          name: variant.name,
+          sku: variant.sku,
+          priceAmount: variant.priceAmount,
+          compareAtPriceAmount: variant.compareAtPriceAmount,
+          stockQuantity: variant.stockQuantity,
+          weightGrams: variant.weightGrams,
+          lengthMm: variant.lengthMm,
+          widthMm: variant.widthMm,
+          heightMm: variant.heightMm,
+          position: index,
+        })),
+      );
+
+      // A technical sheet is optional, and Drizzle refuses an empty `values`.
+      if (input.specifications.length > 0) {
+        await tx.insert(productSpecification).values(
+          input.specifications.map((specification, index) => ({
+            productId: created.id,
+            label: specification.label,
+            value: specification.value,
+            position: index,
+          })),
+        );
+      }
+
+      return { id: created.id };
+    });
+  }),
 
   /**
    * Puts a Product on sale: `draft | archived → active`.
