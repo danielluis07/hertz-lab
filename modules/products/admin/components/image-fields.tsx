@@ -314,8 +314,10 @@ function ImageTile({
 /**
  * The photograph itself. A plain `img`: the source is either a `blob:` URL,
  * which the optimizer cannot fetch, or a bucket object shown at thumbnail size
- * on a page only an Admin opens — neither is a job for `next/image`, and the
- * asset host is not in `remotePatterns` for exactly that reason.
+ * on a page only an Admin opens — neither is a job for `next/image`. The asset
+ * host is in `remotePatterns` now that the shop renders through the optimizer
+ * (ADR-0021), which changes nothing here: a `blob:` URL still cannot go
+ * through it, and the tile still does not need to.
  *
  * `alt=""` because it is decorative *here*: the field below it is where the
  * Admin writes what the photograph shows, and reading a filename aloud would
