@@ -52,8 +52,10 @@ two more files this shape did not predict, both in `admin/` and both pulling a r
 out of a `.tsx`: `filters.ts` (the `FilterBar` spec, a **function** because two
 of its four filters are rows a route reads per request) and `form-values.ts`
 (the aggregate turned into `defaultValues`, plus the index arithmetic an Image
-needs when a Variant leaves the array). `admin/upload.ts` is a third, and it is
-ADR-0018's alone. See `docs/PRODUCTS-ADMIN.md`.
+needs when a Variant leaves the array). There was a third, `admin/upload.ts`,
+and it is now `lib/upload.ts`: what it held was true of any picture, and a
+second uploader is what the promotion section below asks for. See
+`docs/PRODUCTS-ADMIN.md`.
 
 Four rules give the layout:
 
@@ -263,6 +265,19 @@ did not promote: its columns are a function of the row, so it stays
 *can the declaration be data, or does it need a function?* — is the one to apply
 to anything else proposed for sharing.
 
+The uploader passed the second half of that gate and was let through the first
+ahead of time. `components/image-upload-field.tsx` takes the pending files as a
+prop and the module's own tiles as children, `hooks/use-image-upload.ts` takes
+the `createImageUpload` / `discardImageUpload` pair as props, and
+`lib/upload.ts` holds the two browser APIs neither of them can be pure
+without — none of the three knows a Product. Its second caller is the
+**Category** picture ADR-0021 decided and a later ticket builds: the field was
+written in its final home rather than moved there a week after, which is a named
+exception to *promote on the second caller* and not a licence to guess at one.
+The **pair of procedures** is what did not promote even so: each mints its own
+prefix and guards its own table, so it stays in the module, exactly as the table
+does above.
+
 The same rule runs one level down: a component used by both `admin/` and
 `shop/` moves up to the module root; one used by a single audience stays put,
 however tempting the symmetry.
@@ -388,9 +403,9 @@ entire triad — it does not scaffold an empty one.
 **Products-only, and not to be copied by default:** nested child arrays at all
 and everything they drag in — `useFieldArray` field groups, the reconciling
 write, `admin/form-values.ts`; images and their whole apparatus
-(`admin/upload.ts`, `use-product-images`, the two upload hooks, the `stat`
-guard — ADR-0018); a denormalised column another module maintains (ADR-0004,
-ADR-0020); and `server/queries.ts`, which exists only because a second procedure
-asked the same question. Most of the eight are a single table with a single
-form, and for them the anatomy stops at `schemas.ts`, `constants.ts`,
-`server/admin.ts`, the triad and the hooks.
+(`use-product-images`, the two upload hooks, the `stat` guard — ADR-0018 — over
+the shared field and `lib/upload.ts`); a denormalised column another module
+maintains (ADR-0004, ADR-0020); and `server/queries.ts`, which exists only
+because a second procedure asked the same question. Most of the eight are a
+single table with a single form, and for them the anatomy stops at
+`schemas.ts`, `constants.ts`, `server/admin.ts`, the triad and the hooks.

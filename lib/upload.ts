@@ -1,14 +1,56 @@
+import "client-only";
+
+/**
+ * **The two things an image upload needs from the browser**, and the reason
+ * this file is not `lib/utils/image.ts`: `lib/utils/*` are isomorphic and mark
+ * nothing (`docs/CONVENTIONS.md`), while `XMLHttpRequest` and
+ * `createImageBitmap` are browser APIs. Everything that can be judged without
+ * one stayed there; what is left is here, impure and client-only (ADR-0021).
+ *
+ * It is global rather than a module's, because there are two uploaders — a
+ * Product photograph and a Category picture — and neither of these functions
+ * knows which one it is serving. `import "client-only"` states the boundary
+ * the way `import "server-only"` states the other side's.
+ */
+
+/**
+ * **The real dimensions of a picked file.** The only impure step in the
+ * geometry gate: it reads the numbers, and `checkImageDimensions` — pure,
+ * isomorphic, tested — decides what they mean (ADR-0017, ADR-0021).
+ *
+ * `createImageBitmap` decodes off the main thread and answers for every format
+ * this app accepts, AVIF included, which is what an `<img>` and an object URL
+ * would also have done at the cost of a load/error dance and a URL to revoke.
+ * The bitmap is closed as soon as its two numbers are read: it is a decoded
+ * surface, and a batch of six 4000 × 4000 photographs held open is 384 MB.
+ *
+ * **It returns `null` rather than throwing** for a file that will not decode —
+ * a `.png` that is not one, a truncated download. That is a refusal like any
+ * other and the caller renders a sentence for it, so there is nothing here for
+ * a `try` to add.
+ */
+export async function readImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+
+    try {
+      return { width: bitmap.width, height: bitmap.height };
+    } finally {
+      bitmap.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The one thing `fetch` cannot do: report how much of a file has gone up.
  * Bytes-sent is exposed only through `XMLHttpRequest`, so a determinate
  * progress bar is a choice of transport rather than a choice of component
  * (ADR-0018) — and a product photograph over a Brazilian connection is the
  * reason the bar has to be determinate.
- *
- * **Browser-only, and deliberately not in `lib/`.** It knows no rule, so
- * ADR-0007 would allow promoting it — on the *second* uploader, which is
- * `brand.logoS3Key` and is not built. It lives beside the form that needs it
- * until then.
  *
  * The rejection carries a technical message and never reaches a user: the
  * tile that raised it renders its own pt-BR sentence, because a failed upload

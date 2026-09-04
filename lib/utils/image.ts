@@ -111,6 +111,18 @@ export const IMAGE_MAX_DIMENSION = 4000;
  */
 export const IMAGE_IDEAL_DIMENSION = 1600;
 
+/**
+ * **The spec, said before the mistake rather than only after it** (ADR-0021):
+ * one line, in the panel above every picker, naming the ratio, the floor, the
+ * ideal, the ceiling, the byte cap and the formats.
+ *
+ * It is here, beside the numbers it quotes, so that changing a bound rewrites
+ * the sentence that promises it. The format names are the only literals — a
+ * person writes "WebP" and "JPG", not `image/webp` and `image/jpeg`, and there
+ * are four of them, in the same file as the `IMAGE_CONTENT_TYPES` they name.
+ */
+export const IMAGE_SPEC_SUMMARY = `Quadrada (1:1) · mínimo ${IMAGE_MIN_DIMENSION}×${IMAGE_MIN_DIMENSION} · ideal ${IMAGE_IDEAL_DIMENSION}×${IMAGE_IDEAL_DIMENSION} · máximo ${IMAGE_MAX_DIMENSION}×${IMAGE_MAX_DIMENSION} · até ${IMAGE_MAX_BYTES / 1024 / 1024} MB · JPG, PNG, WebP ou AVIF`;
+
 export type ImageDimensionsCheck =
   | { accepted: true }
   | { accepted: false; message: string };
