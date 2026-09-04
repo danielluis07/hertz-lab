@@ -37,6 +37,20 @@ export const category = pgTable(
     parentId: text("parent_id").references((): AnyPgColumn => category.id, {
       onDelete: "set null",
     }),
+    /**
+     * The one picture a Category may carry: an S3 object key, never a URL, and
+     * never inherited by a child Category. Decoration for the browse surfaces
+     * — not an Image, which is a photograph of a Product (`CONTEXT.md`).
+     *
+     * **There is deliberately no alt-text column beside it** (ADR-0021). The
+     * tile renders `alt=""` because it is a link already labelled by the
+     * Category name, and describing the picture beside it makes a screen
+     * reader say the same word twice. The asymmetry with
+     * `product_image.alt_text` — `notNull` and refused empty — is the point:
+     * that photograph is the only description a blind shopper gets of the
+     * thing on offer.
+     */
+    imageS3Key: text("image_s3_key"),
     position: integer("position").notNull().default(0),
     ...timestamps(),
   },

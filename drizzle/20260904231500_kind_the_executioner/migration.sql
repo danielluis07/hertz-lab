@@ -1,0 +1,1 @@
+ALTER TABLE "category" ADD COLUMN "image_s3_key" text;
