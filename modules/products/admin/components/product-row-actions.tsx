@@ -5,7 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useArchiveProduct } from "@/modules/products/admin/hooks/use-archive-product";
 import { usePublishProduct } from "@/modules/products/admin/hooks/use-publish-product";
 import type { ProductStatus } from "@/modules/products/constants";
-import { isArchivable, isPublishable } from "@/modules/products/status";
+import { isArchivable, isPublishableStatus } from "@/modules/products/status";
 
 /**
  * A `<td>`'s worth of buttons: put a Product on sale, or withdraw it, without
@@ -18,6 +18,12 @@ import { isArchivable, isPublishable } from "@/modules/products/status";
  * So an illegal transition has no control to fire it, and the `CONFLICT` the
  * procedure still throws is the guard for a row whose status moved underneath
  * the Admin — a stale button, not a missing rule.
+ *
+ * The publish rule has a second half this row cannot ask — an active Product
+ * has at least one photograph, and the row carries no image count — so it asks
+ * `isPublishableStatus` and `Publicar` stays. That is the better outcome
+ * anyway: a button that refuses with "add a photograph" tells the Admin what
+ * to do, where a button that quietly disappeared would not.
  *
  * Neither act confirms. Both are reversible from this row, and a reversible
  * act should not cost a dialog (`docs/DATA-FLOW.md`).
@@ -44,7 +50,7 @@ export function ProductRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {isPublishable(status) && (
+      {isPublishableStatus(status) && (
         <Button
           variant="outline"
           size="sm"

@@ -14,9 +14,35 @@ import type { ProductStatus } from "@/modules/products/constants";
  * refuses (ADR-0013), and it lives in `server/admin.ts` beside the throw.
  */
 
-/** A Product goes on sale from `draft` (never sold) or `archived` (sold before). */
-export function isPublishable(status: ProductStatus): boolean {
+/**
+ * The status half of the publish rule: a Product goes on sale from `draft`
+ * (never sold) or `archived` (sold before).
+ *
+ * Split out from `isPublishable` for the one caller that knows a status and
+ * nothing else — the list row, which renders a `Publicar` button from a row
+ * that carries no image count. The row keeps deciding nothing
+ * (`docs/CONVENTIONS.md`): it asks the coarser half of the same rule, and the
+ * photograph is the procedure's to refuse, with a sentence that says so.
+ */
+export function isPublishableStatus(status: ProductStatus): boolean {
   return status === "draft" || status === "archived";
+}
+
+/**
+ * Whether a Product may go on sale: the right status, **and** at least one
+ * photograph. An active Product is one a shopper can evaluate, and a Product
+ * with no image is not one (`CONTEXT.md`).
+ *
+ * A publish rule and not a schema rule, deliberately. A draft may be
+ * imageless — writing the description before the photo shoot arrives is
+ * normal — so `productSchema` still saves one, and a Product archived before
+ * this rule existed stays archived and intact rather than being rewritten.
+ */
+export function isPublishable(
+  status: ProductStatus,
+  imageCount: number,
+): boolean {
+  return isPublishableStatus(status) && imageCount > 0;
 }
 
 /**
@@ -24,6 +50,9 @@ export function isPublishable(status: ProductStatus): boolean {
  * one that was never finished. Archiving is reversible — `isPublishable`
  * accepts `archived` — which is why neither act asks for confirmation
  * (`docs/DATA-FLOW.md`).
+ *
+ * Photographs do not enter into it: withdrawing something from sale is never
+ * blocked, whatever it was shot with.
  */
 export function isArchivable(status: ProductStatus): boolean {
   return status === "draft" || status === "active";

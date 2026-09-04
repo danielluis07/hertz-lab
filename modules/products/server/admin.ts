@@ -40,7 +40,11 @@ import {
   findProductIdWithSlug,
   findSkusInUse,
 } from "@/modules/products/server/queries";
-import { isArchivable, isPublishable } from "@/modules/products/status";
+import {
+  isArchivable,
+  isPublishable,
+  isPublishableStatus,
+} from "@/modules/products/status";
 
 /**
  * The sortable columns. A predicate that exists only as SQL is not a pure rule
@@ -753,6 +757,14 @@ export const adminRouter = createTRPCRouter({
    * module tier, written beside the condition that raises it, winning over the
    * global code map. It names no field, so the global net toasts it rather
    * than standing down for a form that is not there.
+   *
+   * **An active Product has at least one photograph**, which is why this reads
+   * a count as well as a status. It is a publish rule rather than a schema
+   * rule on purpose: a draft with no images still saves (the description often
+   * precedes the photo shoot), and a Product archived before the rule existed
+   * stays archived and intact. The count is a second query rather than a join
+   * on the status read, because the common path — a Product that is already
+   * active — never needs it.
    */
   publish: adminProcedure
     .input(transitionInput)
@@ -760,12 +772,28 @@ export const adminRouter = createTRPCRouter({
       const status = await readStatus(input.id);
       if (!status) throw notFound();
 
-      if (!isPublishable(status)) {
+      if (!isPublishableStatus(status)) {
         throw new TRPCError({
           code: "CONFLICT",
-          // `active` is the only status `isPublishable` refuses, so the
-          // sentence can name it instead of describing the rule.
+          // `active` is the only status the rule refuses on status alone, so
+          // the sentence can name it instead of describing the rule.
           message: "Este produto já está à venda.",
+        });
+      }
+
+      const [images] = await db
+        .select({ value: count() })
+        .from(productImage)
+        .where(eq(productImage.productId, input.id));
+
+      if (!isPublishable(status, images?.value ?? 0)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          // Two refusals rather than one sentence covering both, because an
+          // Admin acts on them differently: the first is a stale button, this
+          // one is a photograph to go and take. Naming it is the point of
+          // writing copy beside the throw at all (ADR-0013).
+          message: "Adicione ao menos uma foto antes de publicar este produto.",
         });
       }
 
