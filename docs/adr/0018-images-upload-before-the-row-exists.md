@@ -216,3 +216,12 @@ broken photograph in the shop, which is precisely what this ADR spends orphans
 to avoid. Deleting after the commit trades that for an unreferenced object,
 which is the thing already tolerated here, so the failure is swallowed rather
 than raised.
+
+**"The write is the real guard" covers what `stat` returns, and no more.**
+ADR-0021 adds a geometry contract — every photograph is square, with a floor and
+a ceiling on its dimensions — and none of it can be enforced here: `stat`
+returns object metadata, not image headers. That rule is checked in the browser
+and nowhere else. The sentence above was written when type and size were the
+only rules and both came back from the object; it is exact about those and
+should not be read as a promise about the pixels. ADR-0021 argues why the gap is
+tolerable and what would close it.

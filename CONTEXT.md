@@ -36,11 +36,18 @@ buy. Carts and Orders always reference a Variant, never a Product.
 **Brand** — the manufacturer of a Product (Sony, Sennheiser, JBL).
 
 **Category** — a node in the browse tree. Categories nest: a Category may have
-a parent Category.
+a parent Category. A Category may carry one picture of its own — decoration for
+the browse surfaces, never a photograph of anything for sale, and never
+inherited by its children. That picture is *not* an Image.
 
 **Image** — a photograph of a Product, stored in S3 and referenced by key. An
 Image may belong to one Variant, or to the Product as a whole. Images are
 ordered, and that order is what the shop renders.
+
+**Cover** — the first Image in a Product's order: the one photograph that
+stands for the Product wherever it appears as a single picture — the catalogue
+grid, a cart line, a link preview. A Cover is a *position*, never a flag, so
+reordering the Images is what changes it.
 
 **Specification** — one labelled row of a Product's technical sheet
 ("Impedância", "32 Ω"). Descriptive text for the shopper, not a filter facet.
