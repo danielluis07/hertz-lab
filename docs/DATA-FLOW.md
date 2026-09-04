@@ -232,13 +232,20 @@ rows, and it is worth naming rather than hiding — the moment either list is
 large enough to feel, the filters that read it become a search procedure and the
 bar gets its own boundary.
 
-**The filter bar is the only client component on the page** — with one
-exception the exemplar found: a list whose rows carry a **status action**
-(publish, archive, moderate) needs an `onClick`, so it has a second client
-component, `<name>-row-actions.tsx`. It is a leaf — a `<td>`'s worth of buttons
-taking an `id` and a `status` — so the property that actually matters is
-unharmed: the header row, every cell and the pagination are still HTML, and **no
-row data is serialized into the document**.
+**The table is a client component, and so is the bar** (issue #31, recorded as
+an amendment to ADR-0016). The table reads its rows with `useSuspenseQuery`
+against the query the page prefetched, because ADR-0011 prefetches and hydrates
+a query **if and only if** a client component reads it — and because every row
+action is specified as an `invalidateQueries` that only refetches queries a
+mounted component is observing. A list whose rows carry a **status action**
+(publish, archive, moderate) adds a third, `<name>-row-actions.tsx`, a leaf
+taking an `id` and a `status`.
+
+The property that survives all three, and the one ADR-0016 actually measured:
+**no row array crosses the boundary as a prop, and no table is config-driven.**
+The rows reach the browser as a dehydrated cache instead — the same bytes, a
+different mechanism — so a list ships its rows once as markup and once as cache.
+Sort headers stay anchors and pagination stays hrefs regardless.
 
 The dividing line is whether the declaration can be **data**. A filter spec is
 strings and option arrays, so it crosses the RSC boundary as a prop and can be
@@ -292,10 +299,17 @@ The search box carries a `key` for the same reason every other control does —
 the parameter name is the surface's, never the bar's (ADR-0005).
 
 The spec is **data**, which is why it can be shared at all: it crosses the
-server/client boundary as an ordinary prop, so the table beside it stays a
-server component. A *column* spec cannot — `cell` is a function — which is the
-whole of ADR-0016 in one sentence, and the reason the table is markup the module
-writes itself.
+server/client boundary as an ordinary prop. A *column* spec cannot — `cell` is a
+function — which is the whole of ADR-0016 in one sentence, and the reason the
+table is markup the module writes itself.
+
+The table being a client component does not soften that test, and reading it as
+"the boundary moved, so a column spec could cross now" gets it backwards. A
+config-driven table fails because the **declaration** would have to be
+`"use client"` and every surface's columns would live in the browser as
+functions; a hand-written client table ships its columns as the markup they
+already are. What is shareable is decided by what the declaration is made of,
+never by which side the component ended up on.
 
 `key` is typed as a key of the list input, so a filter on a parameter the
 ADR-0014 schema does not declare fails to compile.
@@ -340,8 +354,9 @@ computable from the `input` prop the page already passes down. The toggle rule �
 clicking the active column flips its direction, clicking a new column starts at
 that column's own default — is pure.
 
-So sort headers are anchors, the header row stays a server component, and the
-whole sort surface is free, shareable and middle-clickable. It needs a
+So sort headers are anchors, the header row ships no click handler even though
+the table around it is a client component, and the whole sort surface is free,
+shareable and middle-clickable. It needs a
 `buildSortHref`, and this reached its second caller the moment a second list
 existed, so it lives at **`lib/utils/sort.ts`**, beside `lib/utils/pagination.ts`
 and for the same reason: it takes the field, the current sort and the default

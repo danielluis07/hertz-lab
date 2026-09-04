@@ -293,7 +293,7 @@ Nine components, all in `modules/products/admin/components/`.
 
 | File | Kind | Composes |
 | --- | --- | --- |
-| `product-table.tsx` | server | `TableShell`, `SortHeader`, `EmptyRow`, `FilterBar`, `PaginationNav` |
+| `product-table.tsx` | **client** | `TableShell`, `SortHeader`, `EmptyRow`, `PaginationNav`, `useSuspenseQuery` |
 | `product-table-skeleton.tsx` | server | `components/ui/skeleton` |
 | `product-row-actions.tsx` | **client** | `Button`, the publish/archive hooks |
 | `product-form.tsx` | client | shadcn `Field`, the three field groups below |
@@ -307,13 +307,21 @@ The table owns its markup and its columns, and shares everything whose
 declaration is **data** — ADR-0016's test. Its skeleton is a sibling file, not a
 second export, because it knows this table's column count and widths.
 
-**One correction to ADR-0016 falls out here.** That ADR says the filter bar is
-the only client component on a list page. On this surface it is not:
-`product-row-actions.tsx` is a second one, because publish and archive need an
-`onClick`. It is a leaf — a `<td>`'s worth of buttons receiving an `id` and a
-`status` — so no row data crosses the boundary, and the property ADR-0016
-actually cared about holds. Every module with a per-row status action has this
-file.
+**Two corrections to ADR-0016 fall out here.** That ADR says the filter bar is
+the only client component on a list page, and that the table is a server
+component. Neither holds on this surface.
+
+`product-row-actions.tsx` is a second client component, because publish and
+archive need an `onClick`. It is a leaf — a `<td>`'s worth of buttons receiving
+an `id` and a `status` — and every module with a per-row status action has one.
+
+`product-table.tsx` is the third, and that one was a decision rather than a
+consequence: it reads its rows with `useSuspenseQuery` because ADR-0011 hydrates
+a query if and only if a client component reads it, and because the row actions
+above invalidate rather than refresh. Issue #31 settled it; ADR-0016 carries the
+amendment. The property that ADR measured still holds — no row array crosses as
+a prop, and the table is not config-driven — and the table still owns its
+columns as markup.
 
 **The form is one body and two owners** (ADR-0019). `product-form.tsx` takes
 `defaultValues`, `onSubmit` and `isPending` and renders every field; the create
