@@ -10,8 +10,14 @@ row exists (ADR-0018), it holds two denormalised columns another module
 maintains (ADR-0004), and it has the richest filter set in the admin. An
 architecture that survives it survives brands.
 
-**This file is a specification, not a report of code.** None of it is built; the
-map that produced it ships no production code.
+**This file was a specification; it is now a report of code.** The module is
+built — #24 through #29 — and this file has been read end to end against it and
+corrected wherever the build proved it wrong (#30). Where a sentence here and
+the code disagree from here on, the sentence is the one that is wrong.
+
+One divergence is **not** corrected here, because it contradicted an ADR rather
+than this file: whether an admin list table is a client component or a server
+one. It was raised as #31 and settled there, and ADR-0016 carries the amendment.
 
 What generalises out of this file is the **"The template"** section of
 `docs/MODULES.md`. Read that first if you are building one of the other eight.
@@ -20,9 +26,11 @@ What generalises out of this file is the **"The template"** section of
 
 ```
 modules/products/
-  schemas.ts          the Product's own vocabulary — one schema, both audiences
+  schemas.ts          the Product's own vocabulary — one schema, both audiences;
+                      and the image upload's own rules, which are that schema too
   status.ts           the pure transition rule
-  constants.ts        page size, sort defaults, status options
+  constants.ts        page size, sort fields and their default directions, the
+                      three statuses and their pt-BR labels, the blank form rows
   server/
     router.ts         createTRPCRouter({ admin: adminRouter })
     admin.ts          list · byId · create · update · publish · archive
@@ -30,11 +38,12 @@ modules/products/
     queries.ts        the slug and SKU lookups create and update share
     rating.ts         recalculateProductRating — called by reviews (ADR-0020)
   admin/
-    schemas.ts        the list params schema (ADR-0014)
+    schemas.ts        the list params schema and parseProductListParams (ADR-0014)
     filters.ts        the FilterBar spec
-    form-values.ts    byId's aggregate as the form's defaultValues
+    form-values.ts    byId's aggregate as the form's defaultValues, and where an
+                      Image's Variant index lands when that Variant is removed
     upload.ts         putWithProgress — the XHR ADR-0018 forces
-    components/       10 files
+    components/       9 files
     hooks/            7 files
 ```
 
@@ -82,7 +91,10 @@ lateral join per row for decoration on a surface whose users know their own
 catalog.
 
 `search` runs against `product_search_idx`, the GIN index over the Portuguese
-`tsvector`. **A list always succeeds**: a `categoryId` that no longer exists
+`tsvector`, through `plainto_tsquery` — so whatever an Admin typed is a query
+and never a syntax error. The sort carries a second term the spec did not name:
+`asc(product.id)` after the chosen column, because uuidv7 ids sort by creation
+and a page boundary needs a stable tie-break. **A list always succeeds**: a `categoryId` that no longer exists
 yields `[]` and an empty state, never a 404 (`docs/DATA-FLOW.md`, "Absence").
 
 ### `byId`
@@ -98,6 +110,11 @@ Drizzle's relational `with:`. One query, because one React Hook Form needs one
 `defaultValues` object; splitting it would make the form wait on two boundaries
 or stitch them itself.
 
+Every column but one: the generated `searchVector` is the name and the
+description over again and nothing on the page reads it, so `columns` excludes
+it. That single exclusion is also why `ProductDetail` is inferred from the
+procedure and never from the table.
+
 Returns **`null`**, never `NOT_FOUND`. The page turns that into `notFound()`.
 
 ### `create`
@@ -111,6 +128,11 @@ One transaction. Writes the `product` row with **`status: "draft"`
 unconditionally** — status is not in the payload — then the Variants, then the
 Specifications, then the Images with their `variantId` indices resolved against
 the ids the Variant inserts just produced (ADR-0019).
+
+Before any of it, and **outside** the transaction: every key is `stat`ed
+(`assertImagesUploaded`). A round trip per image has no business holding a write
+open, and a refusal there has written nothing. The slug and SKU lookups run
+inside, because they have to see what this write has done so far.
 
 Returns the new row so the call site can `router.push('/admin/products/' + id)`.
 
@@ -126,8 +148,31 @@ rows without insert, rows whose id did not come back are deleted; every
 reconcile is scoped by `productId` so a foreign id can never be written across
 aggregates. Specifications replace-all, for the unique-index reason ADR-0019
 gives. Deleting a Variant an Order references is refused as a `CONFLICT` with
-`cause: { field: "variants" }`. Images whose keys leave the array have their S3
-objects deleted as part of the write (ADR-0018).
+`cause: { field: "variants" }` — checked **before** the write, so a refused
+deletion costs nothing. The Images reconcile as well, and not for the Variants'
+reason: nothing references a `product_image` row, so replace-all would be legal
+and is still wrong, because churning ids to save a diff rewrites the whole
+gallery every time someone fixes a typo in alt text.
+
+A row that no longer exists is a `NOT_FOUND`, thrown from the transaction's own
+first read — the one place in this module where a *write* answers absence, and
+the asymmetry `docs/DATA-FLOW.md` names: reads resolve to "absent", writes
+resolve to "refused".
+
+Images whose keys leave the array have their S3 objects deleted **after the
+commit**, not inside the transaction. This is the correction ADR-0018 records
+under that heading, and it is the one thing about this write that reads wrong
+until it is said: `client.delete` cannot roll back, so deleting inside would
+leave a rolled-back Product pointing at objects that are gone — a broken
+photograph on the shop, which is the failure orphans are spent to avoid. After
+the commit the same failure leaves an unreferenced object, which ADR-0018
+already tolerates, so it is swallowed.
+
+One edit the ordering cannot rescue: **two Variants swapping SKUs.** Deletions
+run first so a freed SKU is available to a row the same save adds, but the
+unique index is checked per statement, so the first update collides with the row
+the second has not written yet. The transaction rolls back under the generic
+pt-BR toast.
 
 `status` is untouched here, and `slug` is an ordinary editable field with no
 linkage to `name` — a slug is a public URL (ADR-0005), and silently rewriting it
@@ -165,10 +210,16 @@ go live by accident.
 ```
 
 ADR-0018 in full. Mints `products/<uuidv7>.<ext>` server-side so no client can
-escape the prefix, and presigns a PUT. The browser uploads with
-`XMLHttpRequest` for determinate progress; `create` and `update` `stat` every
-key they are given, which is the real size and type guard and also catches a key
-that was never uploaded.
+escape the prefix, and presigns a PUT good for ten minutes. The browser uploads
+with `XMLHttpRequest` for determinate progress; `create` and `update` `stat`
+every key they are given, which is the real size and type guard and also catches
+a key that was never uploaded.
+
+The `stat` is not the only thing on the way back in: a key that does not match
+`isProductImageKey` is refused before anything is looked up, so a payload cannot
+name an object this uploader never minted. That refusal, and every other one
+here, names `images.<i>.s3Key` — the tile that caused it, rather than a toast
+the Admin has to match to a photograph by hand.
 
 **Neither half of the input binds anything into the signature**, and the second
 half is a correction to what ADR-0018 implied. `presign` has no
@@ -229,10 +280,25 @@ ADR-0019's reconcile, and `productImageSchema.variantId` typed as
 id, on create and update alike.
 
 It serves the tRPC `.input()` **and** the React Hook Form resolver. One schema,
-one place.
+one place — and the pt-BR messages are in it, so the sentence under a field is
+the sentence the procedure would have refused with.
+
+**The image upload's own vocabulary is in this file too**, which this file did
+not foresee and the build settled: `PRODUCT_IMAGE_CONTENT_TYPES`,
+`PRODUCT_IMAGE_MAX_BYTES`, `PRODUCT_IMAGE_EXTENSIONS`, `imageUploadSchema`,
+`checkImageUpload` and `isProductImageKey`. They are not in `constants.ts`
+because they *are* the schema — one list of accepted types and one ceiling
+serving `createImageUpload`'s `.input()`, the browser's pre-flight check and the
+write's `stat`, at once. `checkImageUpload` takes a `{ type, size }` rather than
+a `File`, which is what keeps the browser's vocabulary out of it and `bun test`
+inside.
 
 `modules/products/admin/schemas.ts` — the **list params schema** and
-`parseProductListParams` beside it (ADR-0014). It lives in the audience folder
+`parseProductListParams` beside it (ADR-0014). Its `.transform` resolves
+`sortOrder` from `PRODUCT_SORT_DEFAULTS`, which is what makes the per-field
+default a property of the parsed object and keeps the schema idempotent — a
+resolved direction parses back to itself, so one schema can parse the URL and
+validate the procedure's input. It lives in the audience folder
 because "paginated, and includes `draft` and `archived`" is a sentence only the
 admin can say.
 
@@ -243,9 +309,16 @@ admin can say.
 no `$inferSelect` row — a type that tracks the table goes stale the first time a
 procedure selects a subset.
 
-`constants.ts` at the root holds `PRODUCTS_PER_PAGE`, `PRODUCT_SORT_DEFAULTS`
-(per-field default directions — `name` asc, `ratingAverage` desc, `createdAt`
-desc) and `PRODUCT_STATUS_OPTIONS` with pt-BR labels.
+`constants.ts` at the root holds `PRODUCTS_PER_PAGE`; `PRODUCT_SORT_FIELDS` and
+`PRODUCT_SORT_DEFAULTS` (per-field default directions — `name` asc,
+`ratingAverage` desc, `createdAt` desc); `PRODUCT_STATUSES`,
+`PRODUCT_STATUS_LABELS` and the `PRODUCT_STATUS_OPTIONS` built from them; and
+the blank form rows — `EMPTY_VARIANT`, `EMPTY_SPECIFICATION` and `NEW_PRODUCT`,
+which `/admin/products/new` opens with. The last three are here rather than as
+object literals in a `.tsx` because the field arrays and the create wrapper's
+`defaultValues` would otherwise each keep their own copy of one shape.
+`ProductStatus` and `ProductSortField` are inferred from those two lists, so the
+module's only status type is the one the constants already declare.
 `admin/filters.ts` holds `productFilters`, the `FilterBar` spec — a function
 of the Brand and Category option sets rather than a constant, because two of its
 four filters are rows the composing route reads per request
@@ -307,16 +380,36 @@ Nothing to prefetch: there is no Product yet.
 ### `/admin/products/[id]`
 
 ```tsx
-await requireAdmin();
-const { id } = await params;
+const AdminEditProductPage = async ({
+  params,
+}: PageProps<"/admin/products/[id]">) => {
+  await requireAdmin();
+  const { id } = await params;
 
-const product = await load(trpc.products.admin.byId.queryOptions({ id }));
-if (!product) notFound();
+  const [product, brands, categories] = await Promise.all([
+    load(trpc.products.admin.byId.queryOptions({ id })),
+    caller.brands.admin.options(),
+    caller.categories.admin.options(),
+  ]);
+
+  if (!product) notFound();
 ```
 
 `load`, not `prefetch`: the heading needs the name **and** the form reads the
-same query, so one fetch serves both consumers. `null` becomes `notFound()` in
-`page.tsx`, where ADR-0006 already puts `requireAdmin()`.
+same query with `useSuspenseQuery`, so one fetch serves both consumers. `null`
+becomes `notFound()` in `page.tsx`, where ADR-0006 already puts `requireAdmin()`.
+
+Two things this file did not have before the build. The generated `PageProps` **is** used here —
+it types `params`, which is all this route needs; it is only `searchParams` on
+the list page that it leaves untyped. And the edit route is a composing route
+too: the form's Brand and Category selects need the same two `options` calls the
+list page makes, so all three reads run in parallel and none waits on another.
+
+The form takes the `id` and reads `byId` itself rather than receiving the
+Product as a prop. That is what makes `load` the right helper rather than a
+contradiction of it — a client component reads the query, so ADR-0011 hydrates
+it — and it is why saving adds `router.refresh()`: the `<h1>` above the form was
+rendered on the server from the RSC copy, which no invalidation reaches.
 
 No `loading.tsx`, no breadcrumbs, and the page owns its own heading and
 "Voltar" — ADR-0015.
@@ -330,12 +423,12 @@ Nine components, all in `modules/products/admin/components/`.
 | `product-table.tsx` | **client** | `TableShell`, `SortHeader`, `EmptyRow`, `PaginationNav`, `useSuspenseQuery` |
 | `product-table-skeleton.tsx` | server | `components/ui/skeleton` |
 | `product-row-actions.tsx` | **client** | `Button`, the publish/archive hooks |
-| `product-form.tsx` | client | shadcn `Field`, the three field groups below |
+| `product-form.tsx` | client | shadcn `Field`, `useProductImages`, the three field groups below |
 | `product-create-form.tsx` | client | `product-form` |
-| `product-edit-form.tsx` | client | `product-form` |
-| `variant-fields.tsx` | client | `useFieldArray` |
+| `product-edit-form.tsx` | client | `product-form`, `useSuspenseQuery` on `byId` |
+| `variant-fields.tsx` | client | `useFieldArray`, and `dropVariant` as it removes a row |
 | `specification-fields.tsx` | client | `useFieldArray` |
-| `image-fields.tsx` | client | `useProductImages`, the tiles and their bars |
+| `image-fields.tsx` | client | the tiles and their bars, over a `ProductImages` prop |
 
 The table owns its markup and its columns, and shares everything whose
 declaration is **data** — ADR-0016's test. Its skeleton is a sibling file, not a
@@ -358,31 +451,64 @@ a prop, and the table is not config-driven — and the table still owns its
 columns as markup.
 
 **The form is one body and two owners** (ADR-0019). `product-form.tsx` takes
-`defaultValues`, `onSubmit` and `isPending` and renders every field; the create
-and edit wrappers are a few lines each and differ only in which hook they fire
-and where they navigate. A `mode` prop branching inside one component would put
-a rule in a `.tsx`, which `docs/CONVENTIONS.md` forbids.
+`defaultValues`, `onSubmit`, `isPending`, a `submitLabel` and the two option
+sets, and renders every field; the create and edit wrappers are a few lines each
+and differ only in which hook they fire and where they navigate. A `mode` prop
+branching inside one component would put a rule in a `.tsx`, which
+`docs/CONVENTIONS.md` forbids.
+
+`onSubmit` is `(values, form)` rather than `(values)`. The wrapper needs the
+form back to turn `error.data.field` into `form.setError`, which is the one
+call-site `onError` ADR-0013 leaves to the surface — and handing it over is what
+keeps the body from owning an error path that differs per owner.
+
+`image-fields.tsx` is fed by `product-form.tsx` rather than calling
+`useProductImages` itself: the hook has a second reader one level up, since
+submit is disabled while `isUploading`. One prop, `images: ProductImages`,
+rather than the nine callbacks the hook returns.
 
 `useWatch({ control })` rather than `form.watch()` — the latter opts a component
 out of the React Compiler.
 
 ## Hooks
 
-Seven, in `modules/products/admin/hooks/`. Five are one per write, named for
+Seven, in `modules/products/admin/hooks/`. **Six** are one per write, named for
 the verb: `use-create-product`, `use-update-product`, `use-publish-product`,
-`use-archive-product`, `use-create-image-upload`, and
+`use-archive-product`, `use-create-image-upload` and
 `use-discard-image-upload`.
 
 `use-product-images` is the exception, and the exception is ADR-0018's. It owns
 the images field array *and* the files still going up to it — pick, check,
-presign, PUT, append, retry, reorder, remove — because that is rule and
+presign, PUT, append, retry, cancel, reorder, remove — because that is rule and
 sequence, which a `.tsx` may not hold. `product-form.tsx` calls it rather than
 `image-fields.tsx`, because the submit button is its second reader: submit is
 disabled while any upload is in flight.
 
+Two of its responsibilities went unnamed until the build, and both are the cost of
+ADR-0019's indices and ADR-0018's orphans, paid at the only place that can see
+them:
+
+- **`dropVariant`.** A tile names its Variant by position, so removing a Variant
+  re-points every photograph above it. `VariantFields` calls this as it removes
+  a row, and `variantIndexAfterRemoval` in `form-values.ts` is the rule it
+  applies — a shot of the Variant that just left becomes a shot of the Product
+  as a whole. `setValue` per tile rather than `replace`, which would remount the
+  tiles and take half-typed alt text with them.
+- **Discarding what nobody kept.** A cancelled tile, a tile whose PUT failed
+  after S3 stored the object, a tile the unmount abandoned mid-transfer, and a
+  never-persisted Image removed from the array all fire `discardImageUpload`.
+  Each is an orphan this code can see, and ADR-0018 takes exactly those.
+
+**A file becomes a form value only once its bytes are in the bucket.** Until
+then it is a `PendingUpload` held here, with its own preview, bar, pt-BR error
+and — for a failed transfer, never a refused type or size — its own retry. That
+is what keeps `images` a list of keys that certainly exist.
+
 The two upload hooks own **neither** of the two things below. There is nothing
 to invalidate — minting a URL changes no row — and a success toast per
-photograph, on a form where six is normal, is noise.
+photograph, on a form where six is normal, is noise. So "one hook per write owns
+invalidation and the success toast" is the rule with two exemptions in this
+module, and the exemption is worth stating rather than leaving as a gap.
 
 Every other hook owns exactly two things — **invalidation and the success
 toast** — and nothing else:
@@ -429,11 +555,14 @@ Four files, and ADR-0017 is what makes the list short: a test follows a rule.
   array value falls to its default, and each `sortBy` gets its own default
   direction.
 - `tests/modules/products/admin/form-values.test.ts` — that an Image names its
-  Variant by index and that the aggregate round-trips into values the write's
-  own schema accepts (ADR-0019).
+  Variant by index, that every child's id is carried back, and that the
+  aggregate round-trips into values the write's own schema accepts (ADR-0019).
+  Also `variantIndexAfterRemoval`, which arrived with the build: the four cases
+  a removed Variant leaves a tile in.
 - `tests/modules/products/schemas.test.ts` — **narrowly**: `variants.min(1)`
   (`CONTEXT.md`: every Product has at least one Variant), the two duplicate-row
-  refusals, `altText` non-empty, and the upload's own rules — what may be
+  refusals — including that two labels differing only in case are *accepted*,
+  because the database's index is exact too — `altText` non-empty, and the upload's own rules — what may be
   uploaded and how big, and that a key from a client is recognised as one this
   app minted or refused (ADR-0018). Not `name.min(1)`; that tests Zod.
 
@@ -465,7 +594,15 @@ Worth stating, because the other eight will be tempted:
   usually a lie in this domain. The only `remove`-shaped acts here are a
   Variant, a Specification or an Image leaving a form array, which is a field
   edit and not a write — `discardImageUpload` deletes an object, never a row.
+  A Variant an Order references is where that field edit is refused, and it is
+  refused by `update` at submit rather than by the button.
 - **No confirmation dialog.** Nothing this module does is un-undoable from the
   same screen — archive is reversible by filtering, and removing an Image is a
   field edit (ADR-0018).
 - **No barrel.** Callers deep-import; the folder layout is the API.
+- **No module middleware.** `docs/MODULES.md` permits a `productProcedure` that
+  loads a row and throws `NOT_FOUND` so five procedures need not each repeat it.
+  Three procedures here read before deciding — `publish`, `archive` and `update`
+  — and two of them want a `status` rather than a row, so it never reached the
+  caller count that would earn it. `readStatus`, a plain function, arrived
+  instead.

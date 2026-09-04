@@ -43,7 +43,9 @@ export default async function ProductPage({ params }: PageProps<"/admin/products
   return (
     <HydrateClient>
       <h1>{product.name}</h1>
-      <ProductEditForm product={product} />
+      {/* the id, not the row: the form reads `byId` itself, which is what
+          makes `load` the right helper rather than a contradiction of it */}
+      <ProductEditForm id={id} />
       <Suspense fallback={<ReviewSummarySkeleton />}>
         <ReviewSummary productId={id} />
       </Suspense>
@@ -431,8 +433,10 @@ There is none, deliberately. A `loading.tsx` replaces the **entire** route
 segment during navigation, which would throw away the instantly-rendered shell —
 nav, heading, filter bar — that per-section Suspense exists to deliver. A page
 awaits only its own `load` calls and whatever a composing route reads through
-`caller` (the products list awaits two `options` queries), so the shell is
-available in one round trip and only the data sections need to show anything.
+`caller` (all three products routes await the same two `options` queries — the
+edit form's selects need them as much as the list's filter bar does), so the
+shell is available in one round trip and only the data sections need to show
+anything.
 
 ### Skeletons
 
@@ -530,7 +534,9 @@ lets the layers stay separate.
 The split between the last two is **facts about the write** versus **facts about
 the surface**. `products.admin.archive` says *"Produto arquivado."* whether it
 was fired from a table row or from a detail page, so that sentence belongs with
-the write. Where the Admin goes next genuinely differs per surface.
+the write. Where the Admin goes next genuinely differs per surface — and so does
+turning `error.data.field` into `form.setError`, which is why the two form
+wrappers each carry one call-site `onError` and the hooks carry none.
 
 A hazard forces that split rather than merely suggesting it: the third tier is
 guarded by `if (this.#mutateOptions && this.hasListeners())`, so a **call-site
@@ -667,7 +673,7 @@ undo from the same screen**.
 
 | Write | Confirm |
 | --- | --- |
-| `remove` — a Variant, a Specification, an empty Category | yes |
+| `remove` — a procedure that genuinely deletes a row, such as an empty Category | yes |
 | Admin logout | yes |
 | `orders.admin.cancel` — irreversible, and ADR-0003 snapshots make it final | yes |
 | `products.admin.archive` — reversible by filtering to archived | no |
@@ -681,6 +687,16 @@ archiving does not confirm.
 **An Image is not on that list**, though an earlier draft of this table put it
 there. Removing an Image is a *field edit* on a form, not a write of its own —
 see "Images" below and ADR-0018.
+
+**Nor is a Variant or a Specification**, which that draft also had, and the
+built module is what settled it: a child row leaving a form array is the same
+kind of act as an Image leaving one. It is undone by adding the row back, it is
+not written until submit, and confirming it would mean confirming every array
+row on the form. The `remove` row above is about a *procedure* that deletes,
+which `products` has none of. Where deleting a child is genuinely refused — a
+Variant an Order references — the refusal comes back from `update` at submit and
+lands on the field, which is a better answer than a dialog asking a question the
+Admin cannot yet be told the answer to.
 
 **The provider takes the action.** It owns pending state and closing, including
 on rejection:
@@ -812,12 +828,22 @@ append({ s3Key: key, altText: "", variantId: null });
 | `s3Key` | from `createImageUpload` | `stat`ed on write; missing, oversized or wrong-typed is refused, naming `images.<i>.s3Key` |
 | `position` | — | derived from array index |
 | `altText` | required, pt-BR, non-empty | schema rule (ADR-0017: tested) |
-| `variantId` | **array index** on create, real id on update | index resolved inside the transaction |
+| `variantId` | **array index**, on create and update alike | index resolved inside the transaction |
 
 The index is the trap. On create the Variants have no ids yet, so a tile cannot
 hold a `variantId`; it holds the position of its Variant in the form's variants
-array, and the write resolves it after the inserts. Empty means what the
-nullable column means — the shot belongs to the Product, not to one Variant.
+array, and the write resolves it after the inserts. **Update keeps the index
+too**, which an earlier version of this table had as "real id on update": one
+shape for both payloads is what keeps the form body one file, and the edit
+form's `defaultValues` therefore convert ids back to indices on the way in
+(`admin/form-values.ts`). Empty means what the nullable column means — the shot
+belongs to the Product, not to one Variant.
+
+The cost of the index is that removing a Variant re-points every tile above it,
+and the form pays it where it can see it: removing a Variant row rewrites the
+affected tiles, and a shot of the Variant that just left becomes a shot of the
+Product as a whole. The write cannot catch this — by the time the payload
+arrives the index it holds is a valid one.
 
 **Progress is determinate, and that forces XHR.** `fetch` reports nothing
 between "sent" and "done"; only `XMLHttpRequest` exposes `upload.onprogress`. A
@@ -834,8 +860,11 @@ tile shows a `URL.createObjectURL` preview immediately with a bar over it.
 **Removal.** Removing a tile whose key was never persisted deletes the S3 object
 immediately, through `discardImageUpload` — that is the one orphan we can see,
 so we take it. Removing a persisted one is just an array element leaving the
-form; the `update` that writes the shorter array deletes the object as part of
-the write. Neither goes through `ConfirmProvider`.
+form; the `update` that writes the shorter array deletes the object **once it
+commits** — after the transaction, never inside it, because `client.delete`
+cannot roll back and a rolled-back Product pointing at deleted objects is the
+broken photograph orphans are spent to avoid (ADR-0018 records this under "As
+part of the write"). Neither goes through `ConfirmProvider`.
 
 **Orphans are tolerated.** An abandoned form leaves an unreferenced object in
 the bucket. There is no sweep, because there is no scheduled runner to run one —
