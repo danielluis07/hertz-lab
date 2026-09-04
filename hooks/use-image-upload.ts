@@ -118,6 +118,12 @@ export function useImageUpload({
    */
   const [judging, setJudging] = useState(0);
   const jobs = useRef(new Map<string, UploadJob>());
+  /**
+   * Whether the form is still on the page. `jobs` cannot answer that on its
+   * own: it holds what is *already* going up, and the gap this closes is the
+   * file that is still being decoded and has no job yet (`admit`).
+   */
+  const mounted = useRef(false);
 
   // The previews are object URLs, and a form the Admin navigated away from
   // still holds their blobs until something lets them go. The transfers stop
@@ -125,9 +131,12 @@ export function useImageUpload({
   // that no longer exists, and what it leaves in the bucket is the orphan an
   // abandoned form was always going to leave (ADR-0018).
   useEffect(() => {
+    mounted.current = true;
     const opened = jobs.current;
 
     return () => {
+      mounted.current = false;
+
       for (const job of opened.values()) {
         job.controller.abort();
         URL.revokeObjectURL(job.previewUrl);
@@ -237,6 +246,15 @@ export function useImageUpload({
       }
 
       const dimensions = await readImageDimensions(file);
+
+      // **The form may have gone while this decoded.** The cleanup above stops
+      // the transfers it can see, and a file being read is not one of them —
+      // so without this the upload would start *after* the unmount, and its
+      // key would arrive at a form that no longer exists to hold it. That is
+      // an orphan this code can see, which is the kind ADR-0018 takes. It is
+      // also where the object URL below would leak, having no cleanup left to
+      // revoke it.
+      if (!mounted.current) return;
 
       if (!dimensions) {
         refuse(file, UNREADABLE_MESSAGE);
