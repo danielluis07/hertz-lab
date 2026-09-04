@@ -129,6 +129,17 @@ an `id` and a `status`, so the property this ADR actually decided on — that th
 raw row array is never serialized to the browser — is untouched. The
 measurements stand.
 
+**A second clause corrected the same way.** "A list surface is therefore: a
+server component the module owns, holding a heading, `<FilterBar>`, a table it
+writes itself" put the bar inside the module's table component. It is in
+`app/(admin)/admin/products/page.tsx` instead, beside the heading the page
+already owned, and outside the `<Suspense>` boundary — because the table turned
+out to be a client component reading its rows through `useSuspenseQuery`
+(ADR-0011), and a bar inside it would be replaced by the skeleton on the first
+paint and re-mounted on every filter change. Which file holds the bar was never
+what this ADR decided; that the bar is *one shared component taking a data spec*
+is, and it is untouched.
+
 The same exemplar cashes in the form sketch this ADR ended on. *One form, one
 mutation* turned out to mean more than it said: because a Product is an
 aggregate of four tables, "one mutation" forced a reconciling transaction and a

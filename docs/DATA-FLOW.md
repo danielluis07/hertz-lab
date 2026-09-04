@@ -220,10 +220,17 @@ them are shared:
 </div>
 ```
 
-The bar sits in `page.tsx` and **outside** the Suspense boundary: it is part of
-the shell an Admin gets immediately, and a filter change must never replace the
-control that made it. The dimming class is on the wrapper around the boundary,
-so exactly one element in the tree knows about `data-pending`.
+The bar sits in `page.tsx` and **outside** the Suspense boundary: it is shell
+rather than data, and a filter change must never replace the control that made
+it. The dimming class is on the wrapper around the boundary, so exactly one
+element in the tree knows about `data-pending`.
+
+It is shell, but on this route it is not *instant* shell: the page `await`s the
+two `options` calls the bar needs, so the heading and the skeleton wait on them
+too. That is the cost of a composing route, it is two indexed reads of tens of
+rows, and it is worth naming rather than hiding — the moment either list is
+large enough to feel, the filters that read it become a search procedure and the
+bar gets its own boundary.
 
 **The filter bar is the only client component on the page** — with one
 exception the exemplar found: a list whose rows carry a **status action**
@@ -257,7 +264,7 @@ component — `components/filter-bar.tsx` — owns every filter write on every a
 list, and the module supplies only a **spec**:
 
 ```tsx
-// modules/products/admin/constants.ts
+// modules/products/admin/filters.ts
 function productFilters({ brands, categories }): readonly FilterSpec<ProductListInput>[] {
   return [
     { kind: "search", key: "search", placeholder: "Buscar por nome ou descrição..." },
@@ -407,9 +414,10 @@ sentinels through.
 
 There is none, deliberately. A `loading.tsx` replaces the **entire** route
 segment during navigation, which would throw away the instantly-rendered shell —
-nav, heading, filter bar — that per-section Suspense exists to deliver. Since
-pages await nothing but their own `load` calls, the shell is available
-immediately and only the data sections need to show anything.
+nav, heading, filter bar — that per-section Suspense exists to deliver. A page
+awaits only its own `load` calls and whatever a composing route reads through
+`caller` (the products list awaits two `options` queries), so the shell is
+available in one round trip and only the data sections need to show anything.
 
 ### Skeletons
 

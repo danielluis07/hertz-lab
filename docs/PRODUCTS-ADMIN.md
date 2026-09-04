@@ -29,7 +29,7 @@ modules/products/
     rating.ts         recalculateProductRating — called by reviews (ADR-0020)
   admin/
     schemas.ts        the list params schema (ADR-0014)
-    constants.ts      the FilterBar spec
+    filters.ts        the FilterBar spec
     components/       9 files
     hooks/            5 files
 ```
@@ -212,7 +212,7 @@ procedure selects a subset.
 `constants.ts` at the root holds `PRODUCTS_PER_PAGE`, `PRODUCT_SORT_DEFAULTS`
 (per-field default directions — `name` asc, `ratingAverage` desc, `createdAt`
 desc) and `PRODUCT_STATUS_OPTIONS` with pt-BR labels.
-`admin/constants.ts` holds `productFilters`, the `FilterBar` spec — a function
+`admin/filters.ts` holds `productFilters`, the `FilterBar` spec — a function
 of the Brand and Category option sets rather than a constant, because two of its
 four filters are rows the composing route reads per request
 (`docs/DATA-FLOW.md`).

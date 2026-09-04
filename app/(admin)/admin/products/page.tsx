@@ -3,7 +3,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { requireAdmin } from "@/lib/auth-guards";
 import { ProductTable } from "@/modules/products/admin/components/product-table";
 import { ProductTableSkeleton } from "@/modules/products/admin/components/product-table-skeleton";
-import { productFilters } from "@/modules/products/admin/constants";
+import { productFilters } from "@/modules/products/admin/filters";
 import { parseProductListParams } from "@/modules/products/admin/schemas";
 import { caller, HydrateClient, prefetch, trpc } from "@/trpc/server";
 
@@ -43,9 +43,10 @@ const AdminProductsPage = async ({
       <div className="group flex flex-col gap-6">
         <h1 className="text-2xl font-semibold">Produtos</h1>
 
-        {/* Outside the Suspense boundary: the filter bar is part of the shell
-            an Admin gets immediately, and a filter change must not replace the
-            control that made it. */}
+        {/* Outside the Suspense boundary: the bar is shell rather than data,
+            and a filter change must not replace the control that made it. It
+            still waits on the two `options` calls above — see the note in
+            `docs/DATA-FLOW.md`. */}
         <FilterBar
           filters={productFilters({ brands, categories })}
           input={input}

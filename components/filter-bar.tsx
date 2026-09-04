@@ -74,9 +74,17 @@ export function FilterBar<TInput extends object>({
 }: {
   filters: readonly FilterSpec<TInput>[];
   /**
-   * The list's parsed input — the same object the page prefetched with. Every
-   * control reads its current value from here rather than re-deriving one
-   * (ADR-0011).
+   * The list's parsed input — the same object the page prefetched with, and
+   * where every **discrete** filter reads its current value rather than
+   * re-deriving one.
+   *
+   * The search box is the exception, and has to be: `useQueryParam` mirrors the
+   * raw parameter because it holds keystrokes the parsed input has not seen
+   * yet, and the schema has already trimmed and dropped what it did see. The
+   * two agree on everything the schema does not rewrite; `?search=%20%20` is
+   * the visible disagreement, and it costs two spaces in a box beside an
+   * unfiltered list. Nothing about ADR-0011 turns on it — the query key is
+   * still the page's one parsed object, and no control computes one.
    */
   input: TInput;
 }) {
