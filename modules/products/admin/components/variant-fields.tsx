@@ -33,8 +33,15 @@ import type { ProductFormValues } from "@/modules/products/schemas";
  */
 export function VariantFields({
   control,
+  onVariantRemoved,
 }: {
   control: Control<ProductFormValues>;
+  /**
+   * Fired **before** the row leaves, because the Images name their Variant by
+   * its index in this array (ADR-0019) and every index above the removed one
+   * is about to mean a different Variant.
+   */
+  onVariantRemoved: (index: number) => void;
 }) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -54,7 +61,10 @@ export function VariantFields({
           key={field.id}
           control={control}
           index={index}
-          onRemove={() => remove(index)}
+          onRemove={() => {
+            onVariantRemoved(index);
+            remove(index);
+          }}
         />
       ))}
 

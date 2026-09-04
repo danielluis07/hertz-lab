@@ -809,7 +809,7 @@ append({ s3Key: key, altText: "", variantId: null });
 
 | Field | Client | Server |
 | --- | --- | --- |
-| `s3Key` | from `createImageUpload` | `stat`ed on write; missing, oversized or wrong-typed is refused |
+| `s3Key` | from `createImageUpload` | `stat`ed on write; missing, oversized or wrong-typed is refused, naming `images.<i>.s3Key` |
 | `position` | — | derived from array index |
 | `altText` | required, pt-BR, non-empty | schema rule (ADR-0017: tested) |
 | `variantId` | **array index** on create, real id on update | index resolved inside the transaction |
@@ -832,10 +832,10 @@ tile shows a `URL.createObjectURL` preview immediately with a bar over it.
 > ADR-0013 exists to prevent.
 
 **Removal.** Removing a tile whose key was never persisted deletes the S3 object
-immediately — that is the one orphan we can see, so we take it. Removing a
-persisted one is just an array element leaving the form; the `update` that
-writes the shorter array deletes the object as part of the write. Neither goes
-through `ConfirmProvider`.
+immediately, through `discardImageUpload` — that is the one orphan we can see,
+so we take it. Removing a persisted one is just an array element leaving the
+form; the `update` that writes the shorter array deletes the object as part of
+the write. Neither goes through `ConfirmProvider`.
 
 **Orphans are tolerated.** An abandoned form leaves an unreferenced object in
 the bucket. There is no sweep, because there is no scheduled runner to run one —

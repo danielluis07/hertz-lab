@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   toProductFormValues,
+  variantIndexAfterRemoval,
   type ProductDetail,
 } from "@/modules/products/admin/form-values";
 import { productSchema } from "@/modules/products/schemas";
@@ -133,5 +134,30 @@ describe("toProductFormValues", () => {
       "image-capa",
       "image-branco",
     ]);
+  });
+});
+
+/**
+ * The other side of the same rule, and the reason it needs one. An Image names
+ * its Variant **positionally**, so removing a Variant row silently re-points
+ * every photograph after it: drop "Preto" and the shot of Preto becomes the
+ * shot of "Branco". ADR-0019 accepted that indices are load-bearing; it did
+ * not accept that.
+ */
+describe("variantIndexAfterRemoval", () => {
+  test("leaves a shot of the Product as a whole alone", () => {
+    expect(variantIndexAfterRemoval(null, 0)).toBeNull();
+  });
+
+  test("returns a shot of the removed Variant to the Product", () => {
+    expect(variantIndexAfterRemoval(1, 1)).toBeNull();
+  });
+
+  test("shifts a Variant that moved down the array", () => {
+    expect(variantIndexAfterRemoval(2, 0)).toBe(1);
+  });
+
+  test("leaves a Variant before the removed one where it is", () => {
+    expect(variantIndexAfterRemoval(0, 1)).toBe(0);
   });
 });

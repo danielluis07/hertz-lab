@@ -37,8 +37,10 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/utils/slug";
+import { ImageFields } from "@/modules/products/admin/components/image-fields";
 import { SpecificationFields } from "@/modules/products/admin/components/specification-fields";
 import { VariantFields } from "@/modules/products/admin/components/variant-fields";
+import { useProductImages } from "@/modules/products/admin/hooks/use-product-images";
 import {
   productSchema,
   type ProductFormValues,
@@ -156,6 +158,14 @@ export function ProductForm({
   // `useWatch`, never `form.watch()`: the latter re-renders on every keystroke
   // of every field and opts this component out of the React Compiler.
   const name = useWatch({ control: form.control, name: "name" });
+
+  /**
+   * The images field, and the uploads that have not become one yet (ADR-0018).
+   * It is called here rather than inside `ImageFields` because the submit
+   * button below is its second reader: a Product must not be saved
+   * referencing a file that never arrived.
+   */
+  const images = useProductImages({ form });
 
   /**
    * The slug follows the name while the Admin has not typed in it, so nobody
@@ -286,7 +296,23 @@ export function ProductForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <VariantFields control={form.control} />
+            <VariantFields
+              control={form.control}
+              onVariantRemoved={images.dropVariant}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Imagens</CardTitle>
+            <CardDescription>
+              A primeira imagem é a que aparece na vitrine. Cada uma pode
+              mostrar o produto todo ou uma variação.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ImageFields control={form.control} images={images} />
           </CardContent>
         </Card>
 
@@ -302,8 +328,16 @@ export function ProductForm({
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit">
+        <div className="flex items-center justify-end gap-3">
+          {/* Said out loud rather than left for the Admin to work out from a
+              greyed-out button (ADR-0018). */}
+          {images.isUploading && (
+            <p className="text-muted-foreground text-sm">
+              Aguarde o envio das imagens para salvar.
+            </p>
+          )}
+
+          <Button type="submit" disabled={images.isUploading}>
             {isPending && <Spinner data-icon="inline-start" />}
             {submitLabel}
           </Button>
