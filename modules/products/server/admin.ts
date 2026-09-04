@@ -8,6 +8,10 @@ import { db } from "@/db";
 import {
   brand,
   category,
+  // The Orders that reference a Variant are what makes deleting one a refusal
+  // rather than a write. The foreign key points this way (ADR-0009), and the
+  // rule it carries is the products module's to enforce (ADR-0019).
+  orderItem,
   product,
   productSpecification,
   productVariant,
@@ -20,6 +24,10 @@ import {
   type ProductStatus,
 } from "@/modules/products/constants";
 import { productSchema } from "@/modules/products/schemas";
+import {
+  findProductIdWithSlug,
+  findSkusInUse,
+} from "@/modules/products/server/queries";
 import { isArchivable, isPublishable } from "@/modules/products/status";
 
 /**
@@ -131,6 +139,40 @@ export const adminRouter = createTRPCRouter({
     }),
 
   /**
+   * The whole aggregate behind `/admin/products/[id]`: the row plus its
+   * Variants, Images and Specifications, each ordered by `position` — the
+   * order the Admin arranged them in (ADR-0018).
+   *
+   * **One query, through the relational builder**, because one React Hook
+   * Form needs one `defaultValues` object. Splitting the children into
+   * procedures of their own would make the form wait on two boundaries or
+   * stitch them itself (`docs/PRODUCTS-ADMIN.md`).
+   *
+   * **Returns `null`, never `NOT_FOUND`.** A read resolves absence to
+   * "absent", and the page turns the `null` into `notFound()` — which keeps
+   * the control flow in `page.tsx`, where ADR-0006 already put the auth check
+   * (`docs/DATA-FLOW.md`).
+   */
+  byId: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const row = await db.query.product.findFirst({
+        // The generated `tsvector` is the name and the description over again,
+        // and nothing on this page reads it. Every other column stays: a
+        // `columns` map holding only `false` is an exclusion, not a selection.
+        columns: { searchVector: false },
+        where: { id: input.id },
+        with: {
+          variants: { orderBy: { position: "asc" } },
+          images: { orderBy: { position: "asc" } },
+          specifications: { orderBy: { position: "asc" } },
+        },
+      });
+
+      return row ?? null;
+    }),
+
+  /**
    * Writes a whole Product — the row, its Variants and its Specifications — in
    * **one transaction**, so an Admin cannot end up with half a listing and
    * lose the rest. It takes the root `productSchema`, the same object the form
@@ -148,15 +190,10 @@ export const adminRouter = createTRPCRouter({
    */
   create: adminProcedure.input(productSchema).mutation(async ({ input }) => {
     return db.transaction(async (tx) => {
-      // Both uniques are checked before the write rather than caught after it:
-      // a constraint violation names a Postgres index, and what a form needs is
-      // the field that caused it. Read-then-write, so two Admins racing on the
-      // same slug can still collide on the index — the same trade the
-      // transitions below make, and the loser sees the generic pt-BR toast.
-      const [taken] = await tx
-        .select({ id: product.id })
-        .from(product)
-        .where(eq(product.slug, input.slug));
+      // Both uniques are checked before the write rather than caught after it,
+      // for the reason `queries.ts` gives. No `exceptId` here: a Product that
+      // does not exist yet has no slug of its own to collide with.
+      const taken = await findProductIdWithSlug(tx, { slug: input.slug });
 
       if (taken) {
         throw new TRPCError({
@@ -169,33 +206,21 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const rows = await tx
-        .select({ sku: productVariant.sku })
-        .from(productVariant)
-        .where(
-          inArray(
-            productVariant.sku,
-            input.variants.map((variant) => variant.sku),
-          ),
-        );
-
-      // Only the SKUs *other* Products hold are a question for the database.
-      // Two rows of this same form sharing one is a payload the schema already
-      // refuses — in the browser and again through `.input()` — so there is no
-      // rule left here, only the lookup that no pure function could answer.
-      const takenSkus = new Set(rows.map((row) => row.sku));
-      const index = input.variants.findIndex((variant) =>
+      const takenSkus = await findSkusInUse(tx, {
+        skus: input.variants.map((variant) => variant.sku),
+      });
+      const takenIndex = input.variants.findIndex((variant) =>
         takenSkus.has(variant.sku),
       );
 
-      if (index !== -1) {
+      if (takenIndex !== -1) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: `O SKU ${input.variants[index].sku} já está em uso.`,
+          message: `O SKU ${input.variants[takenIndex].sku} já está em uso.`,
           // The path React Hook Form registered the input under, so the
           // message lands on the row that caused it rather than on the
           // section heading above it.
-          cause: new FieldError(`variants.${index}.sku`),
+          cause: new FieldError(`variants.${takenIndex}.sku`),
         });
       }
 
@@ -246,6 +271,212 @@ export const adminRouter = createTRPCRouter({
       return { id: created.id };
     });
   }),
+
+  /**
+   * Edits a whole Product in **one transaction**, so a failure halfway through
+   * never leaves a Product with the wrong Variants.
+   *
+   * **It reconciles; it never replaces** (ADR-0019). Replace-all is the
+   * obvious implementation and the schema forbids it twice over:
+   * `order_item.variant_id` is `restrict`, so deleting the children would make
+   * every Product that has ever sold uneditable, and `cart_item.variant_id` is
+   * `cascade`, so deleting a Variant in order to re-insert it would empty that
+   * line out of every shopper's Cart — a rename would cost the sale.
+   *
+   * So a child with an `id` updates, a child without one inserts, and a child
+   * whose id did not come back is deleted. **Every reconcile is scoped by
+   * `productId`**, which is what an `id?` a client can lie about needs: an id
+   * belonging to another Product matches no row here, so it is treated as an
+   * insert rather than as a write across aggregates.
+   *
+   * **`status` is not in the payload and is not touched.** A Product moves
+   * through `publish` and `archive` below — the form edits what a Product
+   * *is*, a transition is what it *does*. **`slug` is an ordinary editable
+   * field with no linkage to `name`**: it is a public URL (ADR-0005), and
+   * rewriting it because someone fixed a typo would break every link that was
+   * ever shared.
+   *
+   * Images are in the schema and not in this write, exactly as in `create`
+   * above. They arrive with the images slice, which resolves each tile's
+   * `variantId` **index** against the ids reconcile has just settled, and
+   * deletes the S3 object behind a key that left the array (ADR-0018).
+   */
+  update: adminProcedure
+    .input(productSchema.extend({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      return db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({ id: product.id })
+          .from(product)
+          .where(eq(product.id, input.id));
+
+        if (!existing) throw notFound();
+
+        // The same two lookups `create` runs, excluding this Product from
+        // both: the row being edited holds its own slug and its own SKUs, so a
+        // field nobody changed is not a collision with itself.
+        const taken = await findProductIdWithSlug(tx, {
+          slug: input.slug,
+          exceptId: input.id,
+        });
+
+        if (taken) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Já existe um produto com esta URL.",
+            cause: new FieldError("slug"),
+          });
+        }
+
+        const takenSkus = await findSkusInUse(tx, {
+          skus: input.variants.map((variant) => variant.sku),
+          exceptProductId: input.id,
+        });
+        const takenIndex = input.variants.findIndex((variant) =>
+          takenSkus.has(variant.sku),
+        );
+
+        if (takenIndex !== -1) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `O SKU ${input.variants[takenIndex].sku} já está em uso.`,
+            cause: new FieldError(`variants.${takenIndex}.sku`),
+          });
+        }
+
+        // The reconcile's one read, and the scope every statement below
+        // inherits from it: these are the ids this Product actually holds.
+        const current = await tx
+          .select({ id: productVariant.id })
+          .from(productVariant)
+          .where(eq(productVariant.productId, input.id));
+
+        const currentIds = new Set(current.map((row) => row.id));
+        // An id the client sent that this Product does not hold is not kept —
+        // it falls through to an insert below rather than naming a row of
+        // somebody else's aggregate.
+        const keptIds = new Set(
+          input.variants
+            .map((variant) => variant.id)
+            .filter((id) => id !== undefined && currentIds.has(id)),
+        );
+        const removedIds = current
+          .map((row) => row.id)
+          .filter((id) => !keptIds.has(id));
+
+        // **Before the write**, so a refused deletion costs nothing: the
+        // Orders that reference a Variant are history, and history is the
+        // reason `order_item.variant_id` is `restrict` in the first place.
+        if (removedIds.length > 0) {
+          const [sold] = await tx
+            .select({ id: orderItem.id })
+            .from(orderItem)
+            .where(inArray(orderItem.variantId, removedIds))
+            .limit(1);
+
+          if (sold) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Esta variação já foi vendida e não pode ser removida.",
+              // The array rather than one of its rows: the row the Admin
+              // removed is no longer in the form to point at (ADR-0019).
+              cause: new FieldError("variants"),
+            });
+          }
+        }
+
+        // `status` is absent from this `set` on purpose — see above. So is
+        // `updatedAt`, which `timestamps()` maintains with `$onUpdate`.
+        await tx
+          .update(product)
+          .set({
+            name: input.name,
+            slug: input.slug,
+            description: input.description,
+            brandId: input.brandId,
+            categoryId: input.categoryId,
+          })
+          .where(eq(product.id, input.id));
+
+        // Deletions first, so a SKU this save frees is available to a Variant
+        // the same save adds. `product_variant.sku` is unique across the whole
+        // catalog and the index is checked per statement, so the one edit this
+        // ordering cannot rescue is two Variants *swapping* SKUs: the first
+        // update collides with the row the second has not written yet, and the
+        // transaction rolls back under the generic pt-BR toast.
+        if (removedIds.length > 0) {
+          await tx
+            .delete(productVariant)
+            .where(
+              and(
+                eq(productVariant.productId, input.id),
+                inArray(productVariant.id, removedIds),
+              ),
+            );
+        }
+
+        // `position` is the array index and is never sent, exactly as on
+        // create: the order the Admin arranged is the order that persists
+        // (ADR-0018).
+        const inserts: (typeof productVariant.$inferInsert)[] = [];
+
+        for (const [position, variant] of input.variants.entries()) {
+          const values = {
+            name: variant.name,
+            sku: variant.sku,
+            priceAmount: variant.priceAmount,
+            compareAtPriceAmount: variant.compareAtPriceAmount,
+            stockQuantity: variant.stockQuantity,
+            weightGrams: variant.weightGrams,
+            lengthMm: variant.lengthMm,
+            widthMm: variant.widthMm,
+            heightMm: variant.heightMm,
+            position,
+          };
+
+          if (variant.id !== undefined && currentIds.has(variant.id)) {
+            await tx
+              .update(productVariant)
+              .set(values)
+              .where(
+                and(
+                  eq(productVariant.id, variant.id),
+                  eq(productVariant.productId, input.id),
+                ),
+              );
+            continue;
+          }
+
+          inserts.push({ productId: input.id, ...values });
+        }
+
+        if (inserts.length > 0) {
+          await tx.insert(productVariant).values(inserts);
+        }
+
+        // **Specifications replace-all**, and that is not an inconsistency
+        // with the reconcile above (ADR-0019). Nothing references a
+        // Specification, so neither foreign-key hazard applies — and their
+        // `(product_id, label)` unique index is what reconcile would *fail*
+        // on: swapping two labels writes the first before deleting the second.
+        await tx
+          .delete(productSpecification)
+          .where(eq(productSpecification.productId, input.id));
+
+        if (input.specifications.length > 0) {
+          await tx.insert(productSpecification).values(
+            input.specifications.map((specification, position) => ({
+              productId: input.id,
+              label: specification.label,
+              value: specification.value,
+              position,
+            })),
+          );
+        }
+
+        return { id: input.id };
+      });
+    }),
 
   /**
    * Puts a Product on sale: `draft | archived → active`.
