@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useFieldArray, type Control } from "react-hook-form";
+import { useFieldArray, type UseFormReturn } from "react-hook-form";
+import { variantIndexAfterRemoval } from "@/modules/products/admin/form-values";
 import { useCreateImageUpload } from "@/modules/products/admin/hooks/use-create-image-upload";
 import { useDiscardImageUpload } from "@/modules/products/admin/hooks/use-discard-image-upload";
 import { putWithProgress } from "@/modules/products/admin/upload";
@@ -59,10 +60,12 @@ type UploadJob = {
 const UPLOAD_FAILED_MESSAGE = "Não foi possível enviar esta imagem.";
 
 export function useProductImages({
-  control,
+  form,
 }: {
-  control: Control<ProductFormValues>;
+  form: UseFormReturn<ProductFormValues>;
 }) {
+  const control = form.control;
+
   /**
    * `keyName` is not decoration. `useFieldArray` writes React's key onto the
    * field object as `id`, which is the name this array already uses for the
@@ -82,12 +85,19 @@ export function useProductImages({
   const discardUpload = useDiscardImageUpload();
 
   // The previews are object URLs, and a form the Admin navigated away from
-  // still holds their blobs until something lets them go.
+  // still holds their blobs until something lets them go. The transfers stop
+  // with them: an upload nobody is waiting for is bandwidth spent on a form
+  // that no longer exists, and what it leaves in the bucket is the orphan an
+  // abandoned form was always going to leave (ADR-0018).
   useEffect(() => {
     const opened = jobs.current;
 
     return () => {
-      for (const job of opened.values()) URL.revokeObjectURL(job.previewUrl);
+      for (const job of opened.values()) {
+        job.controller.abort();
+        URL.revokeObjectURL(job.previewUrl);
+      }
+
       opened.clear();
     };
   }, []);
@@ -143,11 +153,29 @@ export function useProductImages({
         job.controller.signal,
       );
 
+      // The tile may have been cancelled, or the form unmounted, while the
+      // bytes were moving. `forget` and the unmount both drop the job, so its
+      // absence is the question to ask — and the object goes back where a
+      // cancelled one goes.
+      if (!jobs.current.has(id)) {
+        discardUpload.mutate({ key });
+        return;
+      }
+
       // Only now is it a form value: a key in the array is a key in the
       // bucket, on create and update alike.
       append({ s3Key: key, altText: "", variantId: null });
       forget(id);
     } catch {
+      // A PUT can fail after S3 has stored the object, and a retry mints a
+      // second key — so the first is thrown away here rather than left as an
+      // orphan nobody could have seen (ADR-0018). `cancel` clears the key it
+      // has already discarded, so this never runs twice on one object.
+      if (job.key) {
+        discardUpload.mutate({ key: job.key });
+        job.key = undefined;
+      }
+
       // A tile the Admin cancelled is already gone, and `patch` then finds
       // nothing to write to — which is why an abort needs no branch here.
       patch(id, { error: UPLOAD_FAILED_MESSAGE, retryable: true });
@@ -201,7 +229,13 @@ export function useProductImages({
     const job = jobs.current.get(id);
 
     job?.controller.abort();
-    if (job?.key) discardUpload.mutate({ key: job.key });
+
+    if (job?.key) {
+      discardUpload.mutate({ key: job.key });
+      // Cleared, so the rejection this abort is about to raise does not
+      // discard the same object a second time.
+      job.key = undefined;
+    }
 
     forget(id);
   };
@@ -224,6 +258,26 @@ export function useProductImages({
     if (image && !image.id) discardUpload.mutate({ key: image.s3Key });
   };
 
+  /**
+   * Keep every tile pointing at the Variant it was pointing at, after the
+   * Variant at `removedIndex` leaves the array (`variantIndexAfterRemoval`).
+   * `VariantFields` calls this as it removes a row: the two arrays are one
+   * form, and an index into one of them is only true while the other holds
+   * still.
+   *
+   * `setValue` per tile rather than `replace`, which would remount the tiles
+   * and take the alt text an Admin is halfway through typing with it.
+   */
+  const dropVariant = (removedIndex: number) => {
+    form.getValues("images").forEach((image, index) => {
+      const next = variantIndexAfterRemoval(image.variantId, removedIndex);
+
+      if (next !== image.variantId) {
+        form.setValue(`images.${index}.variantId`, next);
+      }
+    });
+  };
+
   return {
     /** The Images the form holds, in the order the shop will render them. */
     fields,
@@ -234,6 +288,7 @@ export function useProductImages({
     retry,
     cancel,
     removeImage,
+    dropVariant,
     /** Reordering is a client-side array move; `position` is derived on save. */
     move,
   };

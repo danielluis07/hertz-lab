@@ -262,6 +262,25 @@ describe("isProductImageKey", () => {
     expect(isProductImageKey("products/gato.webp")).toBe(false);
   });
 
+  /**
+   * The generator the procedure actually calls, so the pattern cannot drift
+   * away from the keys this app mints.
+   */
+  test("recognises a key minted the way createImageUpload mints one", () => {
+    expect(isProductImageKey(`products/${Bun.randomUUIDv7()}.webp`)).toBe(true);
+  });
+
+  /**
+   * A v4 uuid is well formed and is not something this uploader produced. The
+   * pattern says "a v7 uuid" because that is what it means — a key is not
+   * merely thirty-two hex digits in the right places.
+   */
+  test("refuses a uuid of another version", () => {
+    expect(
+      isProductImageKey("products/0199f0a1-2b3c-4d4e-8f90-1a2b3c4d5e6f.webp"),
+    ).toBe(false);
+  });
+
   test("refuses an extension the uploader never mints", () => {
     expect(
       isProductImageKey("products/0199f0a1-2b3c-7d4e-8f90-1a2b3c4d5e6f.svg"),

@@ -205,3 +205,14 @@ never persisted and nothing else. A persisted Image's object still dies with
 the `update` that drops its key, exactly as decided above. It also never throws
 for a failed delete: the Admin asked to remove a tile, not to clean a bucket,
 and what a failure leaves behind is the orphan this ADR already tolerates.
+
+**"As part of the write" is after the commit, not inside the transaction.** The
+first implementation deleted the dropped objects as the last statement inside
+`update`'s transaction, on the reasoning that a failed delete should take the
+row changes with it. That is backwards. `client.delete` does not roll back: one
+delete of several failing rolls the rows back while the objects already deleted
+stay deleted, and the Product is left holding rows that point at nothing — a
+broken photograph in the shop, which is precisely what this ADR spends orphans
+to avoid. Deleting after the commit trades that for an unreferenced object,
+which is the thing already tolerated here, so the failure is swallowed rather
+than raised.

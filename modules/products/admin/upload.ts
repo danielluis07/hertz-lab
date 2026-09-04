@@ -51,6 +51,15 @@ export function putWithProgress(
     request.onerror = () => reject(new Error("Upload failed"));
     request.onabort = () => reject(new Error("Upload aborted"));
 
+    // An abort that already happened fires no event to listen for, and the
+    // window it lands in is real: a tile cancelled while its presign is still
+    // in flight aborts a signal nothing is listening to yet. Without this the
+    // file would upload anyway and its key would join the form.
+    if (signal?.aborted) {
+      reject(new Error("Upload aborted"));
+      return;
+    }
+
     signal?.addEventListener("abort", () => request.abort(), { once: true });
 
     request.send(file);

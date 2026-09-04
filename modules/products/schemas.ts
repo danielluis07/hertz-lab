@@ -177,12 +177,18 @@ export function checkImageUpload(file: {
  * The shape of a key this app minted: `products/<uuidv7>.<ext>` (ADR-0018).
  *
  * `createImageUpload` mints every key server-side, so no client can name one —
- * and this is what keeps that promise where a key travels the other way, in
- * `discardImageUpload`'s input. A path that escapes the prefix, or an
- * extension the uploader never writes, is not something this app put there.
+ * and this is what keeps that promise wherever a key travels the other way:
+ * `discardImageUpload` takes one as input, and `create` and `update` take an
+ * array of them. A path that escapes the prefix, or an extension the uploader
+ * never writes, is not something this app put there.
+ *
+ * The uuid is matched **as a v7 uuid** — version nibble `7`, RFC variant — and
+ * not as thirty-two loose hex digits, so the pattern says what it means. It
+ * still cannot prove that a well-formed key was ever *issued*: that is what
+ * `stat` is for, and between them they leave nothing for a client to name.
  */
 const PRODUCT_IMAGE_KEY_PATTERN = new RegExp(
-  `^products/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](?:${Object.values(
+  `^products/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](?:${Object.values(
     PRODUCT_IMAGE_EXTENSIONS,
   ).join("|")})$`,
 );

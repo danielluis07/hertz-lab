@@ -165,7 +165,7 @@ export function ProductForm({
    * button below is its second reader: a Product must not be saved
    * referencing a file that never arrived.
    */
-  const images = useProductImages({ control: form.control });
+  const images = useProductImages({ form });
 
   /**
    * The slug follows the name while the Admin has not typed in it, so nobody
@@ -296,7 +296,10 @@ export function ProductForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <VariantFields control={form.control} />
+            <VariantFields
+              control={form.control}
+              onVariantRemoved={images.dropVariant}
+            />
           </CardContent>
         </Card>
 

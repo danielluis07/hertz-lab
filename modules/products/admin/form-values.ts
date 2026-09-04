@@ -71,3 +71,30 @@ export function toProductFormValues(product: ProductDetail): ProductFormValues {
     })),
   };
 }
+
+/**
+ * Where an Image's Variant lands when the Variant at `removedIndex` leaves the
+ * form's array.
+ *
+ * **This is the cost of ADR-0019's indices, paid.** A tile names its Variant by
+ * position, so an array that shifts under it re-points a photograph at a
+ * different Variant without anyone touching the tile — remove "Preto" and the
+ * shot of Preto is saved as the shot of "Branco". The write cannot see this:
+ * by the time the payload arrives, the index it holds is a perfectly valid one.
+ *
+ * A shot of the Variant that just left becomes a shot of the Product as a
+ * whole, which is what the nullable column already means and the only honest
+ * answer — the thing it showed is no longer for sale on its own.
+ *
+ * It lives here rather than in the hook that calls it because it is a rule
+ * about the form's vocabulary, and rules are what `bun test` reaches
+ * (ADR-0017).
+ */
+export function variantIndexAfterRemoval(
+  variantId: number | null,
+  removedIndex: number,
+): number | null {
+  if (variantId === null || variantId < removedIndex) return variantId;
+
+  return variantId === removedIndex ? null : variantId - 1;
+}

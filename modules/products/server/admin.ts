@@ -121,6 +121,18 @@ async function assertImagesUploaded(
           cause: new FieldError(`images.${index}.s3Key`),
         });
 
+      // `productImageSchema` types `s3Key` as a non-empty string, because a
+      // form value is a form value; the guarantee that a key names an object
+      // *this* uploader minted is enforced here, before anything is looked up.
+      // Without it a payload could name any object in the bucket and attach
+      // it, which is the promise `createImageUpload` makes by minting keys
+      // server-side (ADR-0018) — kept on the way back in too.
+      if (!isProductImageKey(image.s3Key)) {
+        throw refuse(
+          "Esta imagem não chegou ao servidor. Remova-a e envie o arquivo novamente.",
+        );
+      }
+
       let stat;
 
       try {
@@ -162,12 +174,30 @@ function resolveVariantId(
 
 /**
  * The S3 objects behind keys that are leaving, deleted as part of the write
- * that drops them (ADR-0018). It runs inside the transaction and last, so an
- * S3 failure rolls the row changes back rather than leaving rows pointing at
- * objects that are gone.
+ * that drops them (ADR-0018) — but **after** it commits, not inside it.
+ *
+ * Inside the transaction was the first shape of this, and it is the wrong way
+ * round. `client.delete` is not transactional: one delete of several failing
+ * rolls the rows back while the objects already deleted stay deleted, and the
+ * Product is left holding rows that point at nothing — a broken photograph on
+ * the shop, which is the failure ADR-0018 spends orphans to avoid.
+ *
+ * After the commit, the same failure leaves an unreferenced object instead,
+ * which is the thing this ADR already tolerates. So a failure here is
+ * swallowed for the same reason `discardImageUpload` swallows one: the save
+ * the Admin asked for succeeded, and a toast about a bucket is not something
+ * they can act on.
  */
 async function deleteImageObjects(keys: readonly string[]): Promise<void> {
-  await Promise.all(keys.map((key) => client.delete(key)));
+  await Promise.all(
+    keys.map(async (key) => {
+      try {
+        await client.delete(key);
+      } catch {
+        // Exactly the orphan an abandoned form leaves, and priced the same.
+      }
+    }),
+  );
 }
 
 export const adminRouter = createTRPCRouter({
@@ -431,7 +461,7 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await assertImagesUploaded(input.images);
 
-      return db.transaction(async (tx) => {
+      const written = await db.transaction(async (tx) => {
         const [existing] = await tx
           .select({ id: product.id })
           .from(product)
@@ -682,24 +712,29 @@ export const adminRouter = createTRPCRouter({
           await tx.insert(productImage).values(imageInserts);
         }
 
-        // **The objects behind the keys that left, deleted as part of this
-        // write** (ADR-0018) — the removal an Admin confirmed by saving. Last
-        // in the transaction, so a delete that fails takes the row changes
-        // with it rather than leaving a Product pointing at nothing.
+        // **The objects behind the keys that left** — handed out of the
+        // transaction rather than deleted inside it, because `client.delete`
+        // cannot roll back and a half-deleted set plus a rollback is a
+        // Product pointing at objects that are gone (`deleteImageObjects`).
         //
         // A key the payload still holds is never deleted, however its row was
         // reconciled: the object is what the Admin can see, and it outlives
         // the row that happened to reference it.
         const submittedKeys = new Set(input.images.map((image) => image.s3Key));
 
-        await deleteImageObjects(
-          droppedImages
+        return {
+          id: input.id,
+          droppedKeys: droppedImages
             .map((row) => row.s3Key)
             .filter((key) => !submittedKeys.has(key)),
-        );
-
-        return { id: input.id };
+        };
       });
+
+      // Committed, so the rows that referenced these keys are gone whatever
+      // happens next. The removal an Admin confirmed by saving (ADR-0018).
+      await deleteImageObjects(written.droppedKeys);
+
+      return { id: written.id };
     }),
 
   /**
