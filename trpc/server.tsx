@@ -7,7 +7,13 @@ import { cache } from "react";
 import { createTRPCContext } from "@/trpc/init";
 import { makeQueryClient } from "@/trpc/query-client";
 import { appRouter } from "@/trpc/routers/_app";
-import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import {
+  dehydrate,
+  HydrationBoundary,
+  type DefaultError,
+  type QueryExecuteOptions,
+  type QueryKey,
+} from "@tanstack/react-query";
 // IMPORTANT: Create a stable getter for the query client that
 //            will return the same client during the same request.
 export const getQueryClient = cache(makeQueryClient);
@@ -60,10 +66,26 @@ export function prefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
  * query. One request serves both — the cache is populated for hydration and
  * the data is handed back. Throws, so `notFound()` and friends stay in the
  * page.
+ *
+ * It is typed as the QueryClient's own `query` rather than through
+ * `prefetch`'s constraint above, and it has to be: `TRPCQueryOptions<any>`
+ * erases the procedure's output, which costs a caller that ignores the result
+ * nothing and hands a caller that reads one a `{}`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function load<T extends ReturnType<TRPCQueryOptions<any>>>(
-  queryOptions: T,
-) {
+export function load<
+  TQueryFnData,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  TQueryData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  queryOptions: QueryExecuteOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryData,
+    TQueryKey
+  >,
+): Promise<TData> {
   return getQueryClient().query(queryOptions);
 }
