@@ -49,8 +49,14 @@ const child = alias(category, "child");
  * and say what they mean. The `::int` is because `count(*)` is a `bigint`,
  * which arrives over the wire as a string.
  *
- * Reading the `product` table is not importing the products module: ADR-0009
- * constrains imports, and `product.category_id` already points this way.
+ * **Counting `product` from inside `categories` is ADR-0024**, and it is worth
+ * knowing that ADR-0009 settled the opposite for the surface it could see: a
+ * Category page wanting a count was to compose two calls. That remedy cannot
+ * survive a *sortable* count, which has to be a term in the `ORDER BY` that
+ * chose the rows. What is read here is how many rows hold a key to this one —
+ * through the key that already points this way, and nothing else of that
+ * table. A `leftJoin` pulling a Product's name or price into a Category row
+ * would be over the line ADR-0024 draws.
  */
 const productCount = sql<number>`(${db
   .select({ value: count() })

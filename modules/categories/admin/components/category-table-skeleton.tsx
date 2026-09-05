@@ -11,9 +11,11 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The first paint of `CategoryTable`, and only the first: once a table is on
- * screen a sort change dims it rather than coming back here
- * (`docs/DATA-FLOW.md`).
+ * The first paint of `CategoryTable`, and only the first. A sort is a `Link`,
+ * and Next runs a link navigation in a transition, so the table already on
+ * screen stays there while the next order is fetched rather than coming back
+ * here. `page.tsx` has the rest of that note, including why this list has no
+ * `data-pending` dimming to fall back on.
  *
  * A sibling file rather than a second export, because the page importing it is
  * a server component and the table it stands in for is not — and because

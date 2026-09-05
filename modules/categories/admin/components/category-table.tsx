@@ -159,7 +159,7 @@ export function CategoryTable({ input }: { input: CategoryListInput }) {
                 <TableCell className="text-right tabular-nums">
                   {category.childCount}
                 </TableCell>
-                {/* The slot the delete action lands in (#60). Empty rather
+                {/* The slot the delete action lands in (#63). Empty rather
                     than absent, so adding it changes one cell and not the
                     column count, the header row and the skeleton beside it. */}
                 <TableCell className="text-right" />

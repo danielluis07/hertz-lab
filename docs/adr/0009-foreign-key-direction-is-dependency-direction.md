@@ -79,6 +79,15 @@ The rule is also silent on the shape of the traffic it permits — how `checkout
 actually reaches four modules is a data-flow question, specified separately. All
 this fixes is which way an arrow may point.
 
+**Narrowed by ADR-0024.** The second worked example above — a Category page
+wanting a product count, composed from two calls — is superseded. ADR-0023 made
+that count a rule rather than a display, and #59 made it sortable, and a count
+that arrives from a second call cannot be a term in the `ORDER BY` that chose
+the rows. ADR-0024 lets a module count the rows that hold a key to its own, in
+this ADR's forbidden direction, and permits nothing else of that table. No new
+arrow, no new cycle risk. Where a count is only displayed, the remedy above
+still stands.
+
 **Extended by ADR-0020.** This ADR fixes which way an arrow may point; it was
 silent on whether the traffic it permits may reach a module's `server/` folder,
 which `docs/MODULES.md` had made private without exception. ADR-0020 says it
