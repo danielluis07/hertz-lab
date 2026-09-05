@@ -51,7 +51,16 @@ export const category = pgTable(
      * thing on offer.
      */
     imageS3Key: text("image_s3_key"),
-    position: integer("position").notNull().default(0),
+    // There is deliberately no `position` column. `CONTEXT.md`: a Category has
+    // "no inherent order", so the order of any list of them belongs to the
+    // surface that renders it. The column existed anyway — `integer notNull
+    // default 0` — and nothing ever wrote it, nothing read it, and every row
+    // was 0; a column that does nothing is a trap for the next reader, who
+    // will reasonably assume it works. The asymmetry with the `position` on
+    // Images and Variants is the point: those *are* a position and never a
+    // flag, curated by an Admin who drags the rows. Re-adding this one is a
+    // single migration if the storefront ever wants a curated browse order
+    // (#54).
     ...timestamps(),
   },
   (t) => [index("category_parent_idx").on(t.parentId)],
