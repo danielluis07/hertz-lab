@@ -359,6 +359,15 @@ specification that preceded it (#30).
 - **`list` returns `{ items, total }`** and takes an ADR-0014 params schema from
   `admin/schemas.ts`. `total` is what `PaginationNav` needs. `perPage` is a
   module constant and never an input.
+  **Exception: a list with no `PaginationNav` returns a bare array.** `total` is
+  a second `count(*)` that exists solely to divide by `perPage` into a page
+  count, so a list nothing paginates would be paying for a number nothing
+  renders. The condition is the whole of it — **the set is bounded small enough
+  that an Admin sees it whole**, which is what removed the nav in the first
+  place. `categories.admin.list` is the one such list (#56, #59): tens of rows,
+  no nav, no `perPage` constant, and therefore no `total`. Re-adding pagination
+  is what re-adds the wrapper, and in that order: the shape follows the surface,
+  never the other way round.
 - **`byId` returns the whole aggregate the form edits**, or `null`. One form,
   one `defaultValues`, one query.
 - **One root `schemas.ts`** serving both the tRPC `.input()` and the RHF
