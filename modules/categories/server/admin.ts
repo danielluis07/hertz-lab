@@ -1,12 +1,15 @@
 import "server-only";
 
-import { asc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { alias, type PgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
-import { category } from "@/db/schema";
+import { category, product } from "@/db/schema";
 import { client } from "@/lib/s3";
 import { imageUploadSchema, IMAGE_EXTENSIONS } from "@/lib/utils/image";
 import { adminProcedure, createTRPCRouter } from "@/trpc/init";
+import { categoryListParamsSchema } from "@/modules/categories/admin/schemas";
+import type { CategorySortField } from "@/modules/categories/constants";
 import {
   CATEGORY_IMAGE_PREFIX,
   isCategoryImageKey,
@@ -24,7 +27,100 @@ import {
  */
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 
+/**
+ * The Category a row hangs under, joined to itself. `parentId` is nullable — a
+ * root has none — so this is a **left** join, and `parentName` comes back
+ * `null` for a root rather than dropping the row from the list.
+ */
+const parent = alias(category, "parent");
+
+/** The same table once more, as the Categories that hang under *this* one. */
+const child = alias(category, "child");
+
+/**
+ * How many Products sit in a Category, and how many Categories sit under it —
+ * the two numbers ADR-0023's delete rule is written in. They are on the row so
+ * that an Admin reads why a Category may not be deleted before walking into
+ * the refusal, rather than after it.
+ *
+ * **Correlated subqueries rather than joins.** Two `leftJoin`s and a `groupBy`
+ * would multiply the Products against the children and need
+ * `count(distinct …)` to undo it; on a set of tens of rows these cost nothing
+ * and say what they mean. The `::int` is because `count(*)` is a `bigint`,
+ * which arrives over the wire as a string.
+ *
+ * Reading the `product` table is not importing the products module: ADR-0009
+ * constrains imports, and `product.category_id` already points this way.
+ */
+const productCount = sql<number>`(${db
+  .select({ value: count() })
+  .from(product)
+  .where(eq(product.categoryId, category.id))})::int`;
+
+const childCount = sql<number>`(${db
+  .select({ value: count() })
+  .from(child)
+  .where(eq(child.parentId, category.id))})::int`;
+
+/**
+ * The sortable columns, as the expressions `orderBy` takes. Two of the three
+ * are derived — the parent's name from the self-join, the count from a
+ * subquery — which is why sorting is the query's job and never the browser's:
+ * a client-side comparator would be a second sorting implementation, one that
+ * has to know which of these are text and which are numbers, sitting beside
+ * the `buildSortHref` that already builds the URL.
+ */
+const SORT_COLUMNS = {
+  name: category.name,
+  parentName: parent.name,
+  productCount,
+} satisfies Record<CategorySortField, PgColumn | SQL>;
+
 export const adminRouter = createTRPCRouter({
+  /**
+   * Every Category, in one unpaginated fetch, sorted the way the URL says.
+   *
+   * **It returns a bare array, not `{ items, total }`.** `total` exists in the
+   * products list because `PaginationNav` needs a page count, and there is no
+   * nav here: the set is tens of rows and an Admin sees it whole (#56), so a
+   * second `count(*)` would be a number nothing renders. `docs/MODULES.md`
+   * carries the exception and the condition it holds under.
+   *
+   * **Roots and children interleave.** Under name-ascending a child sorts
+   * among unrelated roots, and that is correct: grouping by parent would make
+   * "sorted by Nome" a claim the table visibly does not honour. The tree is
+   * two levels deep (ADR-0022), and "Categoria pai" is the column that shows
+   * where a row sits in it.
+   *
+   * No `createdAt`. A date answers "what changed recently", which is a
+   * question about a list you cannot see all of.
+   */
+  list: adminProcedure
+    .input(categoryListParamsSchema)
+    .query(async ({ input }) => {
+      const direction = input.sortOrder === "asc" ? asc : desc;
+
+      return db
+        .select({
+          id: category.id,
+          name: category.name,
+          slug: category.slug,
+          imageS3Key: category.imageS3Key,
+          parentName: parent.name,
+          productCount,
+          childCount,
+        })
+        .from(category)
+        .leftJoin(parent, eq(parent.id, category.parentId))
+        .orderBy(
+          direction(SORT_COLUMNS[input.sortBy]),
+          // uuidv7 ids sort by creation, so two Categories sharing a name — or
+          // a parent, or a count — come back in the same order on every
+          // request rather than in whatever order the planner happened to
+          // produce. Reloading a sorted URL reproduces the page exactly.
+          asc(category.id),
+        );
+    }),
   /**
    * Every Category as `{ id, name }`, unpaginated — the twin of
    * `brands.admin.options`, and there for the same composing route
