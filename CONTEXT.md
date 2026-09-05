@@ -39,10 +39,18 @@ buy. Carts and Orders always reference a Variant, never a Product.
 
 **Brand** — the manufacturer of a Product (Sony, Sennheiser, JBL).
 
-**Category** — a node in the browse tree. Categories nest: a Category may have
-a parent Category. A Category may carry one picture of its own — decoration for
-the browse surfaces, never a photograph of anything for sale, and never
-inherited by its children. That picture is *not* an Image.
+**Category** — a node in the browse tree. Categories nest, and the nesting is
+**two levels deep**: a Category is either a *root* or the child of a root, and
+there is no third level. A Category may carry one picture of its own —
+decoration for the browse surfaces, never a photograph of anything for sale, and
+never inherited by its children. That picture is *not* an Image. Categories have
+no inherent order: nothing about a Category is carried by where it sits in a
+list, so the order of any list of them belongs to the surface that renders it.
+
+A Category is deleted, not archived: nothing in Order history refers to one, so
+a dead browse node has no reason to survive. Only an **empty** Category — one
+holding no Products and no child Categories — may be deleted; the Admin empties
+a branch from its leaves upward.
 
 **Image** — a photograph of a Product, stored in S3 and referenced by key. An
 Image may belong to one Variant, or to the Product as a whole. Images are
