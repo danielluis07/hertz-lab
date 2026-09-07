@@ -67,6 +67,26 @@ export async function findCategoryIdWithSlug(
  * Nothing else of the row is read: the name an Admin picked from the Select is
  * the name they already have, and a procedure selecting columns it does not
  * decide on invites the next reader to use them.
+ *
+ * **`FOR UPDATE`, and that is not incidental.** Postgres runs this at `READ
+ * COMMITTED`, where checking the tree and writing it are two moments a
+ * concurrent write fits between: `create` reads that Áudio is a root while
+ * `update` is midway through giving Áudio a parent of its own, both commit,
+ * and the tree is three levels deep with no constraint having been violated.
+ * There is no unique index to catch this the way one catches a raced slug —
+ * ADR-0022's bound is a rule, not a column — so the lock is the only backstop
+ * it has.
+ *
+ * The lock is on **the row whose parenthood is in question**, which is what
+ * makes it sufficient rather than merely careful: every pair of writes that
+ * could build a third level reads that one row, so every such pair contends
+ * here. `update` locks the row it is editing for the same reason, from the
+ * other side.
+ *
+ * Two writers that lock a pair of rows in opposite orders deadlock instead,
+ * and Postgres aborts one of them. That is the loser reading a generic pt-BR
+ * toast — the same degradation this module already accepts for a raced slug,
+ * and a better one than a tree that cannot be rendered.
  */
 export async function findParentCandidate(
   tx: Transaction,
@@ -76,7 +96,8 @@ export async function findParentCandidate(
     .select({ parentId: category.parentId })
     .from(category)
     .where(eq(category.id, id))
-    .limit(1);
+    .limit(1)
+    .for("update");
 
   return proposed;
 }

@@ -351,11 +351,18 @@ export const adminRouter = createTRPCRouter({
     .input(categorySchema.extend({ id: z.string() }))
     .mutation(async ({ input }) =>
       db.transaction(async (tx) => {
+        // `FOR UPDATE` for the reason `findParentCandidate` gives at length:
+        // this row's parenthood is what the two refusals below decide, and a
+        // `create` proposing this Category as a parent locks the same row.
+        // Without it the children check and the write are two moments that a
+        // concurrent insert fits between, and the tree ends up three levels
+        // deep with nothing having been violated.
         const [existing] = await tx
           .select({ id: category.id })
           .from(category)
           .where(eq(category.id, input.id))
-          .limit(1);
+          .limit(1)
+          .for("update");
 
         // No message: an English one would win over the pt-BR code map on the
         // client (ADR-0013), and no field either — the row the Admin is

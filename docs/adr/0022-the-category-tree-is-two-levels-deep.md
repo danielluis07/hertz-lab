@@ -106,5 +106,27 @@ an enabled Select and is refused by the procedure, because the form does not
 encode a rule the server owns and a Category can gain a child between render and
 save.
 
+**The refusals are checked under a row lock**, which #61 added when `update`
+made the second writer. Postgres runs these transactions at `READ COMMITTED`,
+where checking the tree and writing it are two moments another write fits
+between: `create` reads that Áudio is a root while `update` is midway through
+giving Áudio a parent, both commit, and the result is the third level this
+decision exists to make inexpressible. Nothing catches it afterwards — the
+bound is a rule and not a column, so there is no unique index to violate the
+way a raced slug violates one.
+
+So both procedures take `FOR UPDATE` on **the row whose parenthood is in
+question**: the proposed parent in `create`, and in `update` that row plus the
+row being edited. Every pair of writes that could build a third level reads
+that one row, so every such pair contends on it. Two writers locking a pair of
+rows in opposite orders deadlock and Postgres aborts one, which is the loser
+reading a generic pt-BR toast — the degradation this module already accepts for
+a raced slug, and a better one than a tree no surface can render.
+
+This is the smallest thing that closes the hole, and deliberately not
+`SERIALIZABLE` with retry logic: that would change how *every* write in the
+application commits in order to hold one module's invariant, and would put a
+retry loop in a procedure to pay for it.
+
 The reopening trigger is a merchandising need for a third level that a person
 can actually name — not the observation that the column would allow one.
