@@ -421,12 +421,29 @@ entire triad — it does not scaffold an empty one.
 
 **Products-only, and not to be copied by default:** nested child arrays at all
 and everything they drag in — `useFieldArray` field groups, the reconciling
-write, `admin/form-values.ts`; images and their whole apparatus
-(`use-product-images`, the two upload hooks, the `stat` guard — ADR-0018 — over
-the shared field and `lib/upload.ts`); and a denormalised column another module
-maintains (ADR-0004, ADR-0020). Most of the eight are a single table with a
-single form, and for them the anatomy stops at `schemas.ts`, `constants.ts`,
-`server/admin.ts`, the triad and the hooks.
+write, `admin/form-values.ts`; a picture that is a **row** rather than a column,
+and everything only a row has (`product_image`'s alt text, its position, the
+Variant it shows, and the `useFieldArray` that orders them); and a denormalised
+column another module maintains (ADR-0004, ADR-0020). Most of the eight are a
+single table with a single form, and for them the anatomy stops at
+`schemas.ts`, `constants.ts`, `server/admin.ts`, the triad and the hooks.
+
+**The uploader is no longer on that list either, and #62 is where it left.** A
+module that keeps a picture **writes** four things and imports the rest. It
+writes its own `images.ts` binding one prefix (ADR-0009 forbids importing
+another module's); its own `createImageUpload` / `discardImageUpload` pair —
+the half that does not promote, because each mints its own prefix and guards
+its own table — with a thin mutation hook per procedure; **one** hook composing
+`hooks/use-image-upload.ts` and holding whatever rules that module's picture
+has; and, in both writes, ADR-0018's two halves — the `stat` guard before the
+transaction and the deletion of a dropped object after it commits. What it
+imports is `components/image-upload-field.tsx`, rendered with its own tiles as
+children.
+
+`use-product-images` and `use-category-image` are the two instances of the
+third of those, and the difference between them is the whole of what a module
+owns here: an array that appends, orders and carries alt text, against a single
+key that *replaces*.
 
 **`server/queries.ts` used to be on that list and no longer is.** It was
 products-only for as long as products was the only module with a second

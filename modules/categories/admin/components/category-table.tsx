@@ -71,8 +71,8 @@ export function CategoryTable({ input }: { input: CategoryListInput }) {
           <TableRow className="hover:bg-transparent">
             {/* The picture has no header text: "Imagem" above a column of
                 thumbnails names what is plainly visible. The width is fixed so
-                the column does not collapse while every Category is still
-                pictureless. */}
+                the column holds its place whether or not the rows in it have
+                pictures. */}
             <TableHead className="w-16">
               <span className="sr-only">Imagem</span>
             </TableHead>
@@ -132,9 +132,10 @@ export function CategoryTable({ input }: { input: CategoryListInput }) {
                       />
                     </>
                   ) : (
-                    // Every Category is pictureless until the form can upload
-                    // one, so this is what the column shows for now: the box a
-                    // thumbnail will occupy, and nothing in it.
+                    // A Category is fully usable without a picture
+                    // (ADR-0021), so this is not a missing thumbnail: it is
+                    // the box one would occupy, empty, keeping every row the
+                    // same height as the ones that have one.
                     <div className="bg-muted size-10 rounded-md border" />
                   )}
                 </TableCell>

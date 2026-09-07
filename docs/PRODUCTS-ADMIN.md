@@ -56,10 +56,10 @@ something needs them.
 `createImageBitmap` read are `lib/upload.ts`, the picker they feed is
 `components/image-upload-field.tsx`, and the pick-check-presign-PUT sequence
 behind it is `hooks/use-image-upload.ts`. The Category picture that makes them
-shared is decided (ADR-0021) and lands a ticket later; the field was written in
-its final home rather than moved there the week after, which is the one place
-this repo runs ahead of ADR-0007's *promote on the second caller*, and does it
-with the second caller named. What stayed here is the pair of procedures, which
+shared arrived with #62; the field was written in its final home rather than
+moved there the week after, which is the one place this repo runs ahead of
+ADR-0007's *promote on the second caller*, and does it with the second caller
+named — a bet that caller settled by composing all three unchanged. What stayed here is the pair of procedures, which
 cannot promote — each uploader mints its own prefix and guards its own table —
 and everything that is a rule about a Product.
 
