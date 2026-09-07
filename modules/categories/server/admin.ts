@@ -585,6 +585,112 @@ export const adminRouter = createTRPCRouter({
     }),
 
   /**
+   * Deletes one Category — genuinely, the row goes away — and only when it is
+   * **empty**, which ADR-0023 defines as both: no Products, and no child
+   * Categories. It is `remove` and not `delete` because `docs/MODULES.md`
+   * reserves the second word, and this module has the procedure `products`
+   * does not because nothing in Order history refers to a Category.
+   *
+   * **Both refusals are pre-checked here rather than left to the database**,
+   * and the counts are why. `on delete restrict` on `product.category_id`
+   * would refuse the delete, but a caught FK violation can only say that there
+   * were *some* Products; the count tells the Admin the size of the job before
+   * they walk into it — *"12 produtos estão nesta categoria"* is a work order.
+   * And `on delete set null` on `category.parent_id` would not refuse at all:
+   * it would silently promote the children to roots, rewriting the browse tree
+   * underneath an Admin who asked to remove one node.
+   *
+   * Both foreign keys stay exactly as they are (ADR-0023). The first is the
+   * backstop for the race where a Product is assigned to this Category between
+   * the count and the delete; the second is a backstop the rule never lets
+   * fire.
+   *
+   * **There is no pure `isRemovable`.** The rule's whole content is *both
+   * counts are zero*, handed the rows this procedure just fetched, so a test
+   * of it would be a test of the fetch — and no client asks it, because
+   * `Excluir` renders on every row. ADR-0023 records the call and ADR-0017
+   * means this procedure gets no test of its own.
+   *
+   * **`FOR UPDATE`, for `findParentCandidate`'s reason read from the other
+   * side.** A `create` or an `update` proposing this Category as a parent
+   * locks this same row, so the pair contends: either that write commits first
+   * and the child count below sees its row, or this one deletes first and that
+   * write reads a parent that no longer exists.
+   *
+   * **The picture goes after the row**, once the delete has committed, and a
+   * failure to delete it never throws — ADR-0018 unchanged, in both halves.
+   * `client.delete` cannot roll back, so the object goes after the row is
+   * gone; and the orphan a failed delete leaves is the one that ADR already
+   * tolerates, where leaving the object behind on success would be a
+   * guaranteed orphan on the one path where we can see it happening.
+   *
+   * The refusals carry no `field` — there is no form here, the Admin is
+   * looking at a row — so ADR-0013's global tier renders them as toasts.
+   */
+  remove: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const droppedKey = await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({ id: category.id, imageS3Key: category.imageS3Key })
+          .from(category)
+          .where(eq(category.id, input.id))
+          .limit(1)
+          .for("update");
+
+        // No message, for `update`'s reason: the client's code map already
+        // says "Este item não existe mais. Atualize a página." (ADR-0013).
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // Counting `product` from inside `categories` is ADR-0024: how many
+        // rows hold a key to this one, read through the key that already
+        // points this way, and nothing else of that table.
+        const [products] = await tx
+          .select({ value: count() })
+          .from(product)
+          .where(eq(product.categoryId, input.id));
+
+        if (products.value > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Não é possível excluir: ${products.value} ${
+              products.value === 1 ? "produto está" : "produtos estão"
+            } nesta categoria.`,
+          });
+        }
+
+        // Direct children only, which is every child a two-level tree can have
+        // (ADR-0022). A number rather than the first row, because the count is
+        // what the sentence is written in.
+        const [children] = await tx
+          .select({ value: count() })
+          .from(category)
+          .where(eq(category.parentId, input.id));
+
+        if (children.value > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Não é possível excluir: ${children.value} ${
+              children.value === 1
+                ? "subcategoria está dentro"
+                : "subcategorias estão dentro"
+            } desta categoria.`,
+          });
+        }
+
+        await tx.delete(category).where(eq(category.id, input.id));
+
+        return existing.imageS3Key;
+      });
+
+      // Committed, so nothing references this key any more, whatever happens
+      // next (ADR-0018).
+      if (droppedKey !== null) await deleteImageObject(droppedKey);
+
+      return { id: input.id };
+    }),
+
+  /**
    * Authorises one Category picture upload: takes what the browser knows about
    * the file and returns the key it will be stored under together with a
    * presigned PUT (ADR-0018). The file never transits this server.

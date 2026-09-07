@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { buildSortHref } from "@/lib/utils/sort";
 import { s3KeyToUrl } from "@/lib/utils/url";
+import { CategoryRowActions } from "@/modules/categories/admin/components/category-row-actions";
 import type { CategoryListInput } from "@/modules/categories/admin/schemas";
 import {
   CATEGORY_SORT_DEFAULTS,
@@ -160,10 +161,9 @@ export function CategoryTable({ input }: { input: CategoryListInput }) {
                 <TableCell className="text-right tabular-nums">
                   {category.childCount}
                 </TableCell>
-                {/* The slot the delete action lands in (#63). Empty rather
-                    than absent, so adding it changes one cell and not the
-                    column count, the header row and the skeleton beside it. */}
-                <TableCell className="text-right" />
+                <TableCell className="text-right">
+                  <CategoryRowActions id={category.id} name={category.name} />
+                </TableCell>
               </TableRow>
             ))
           )}

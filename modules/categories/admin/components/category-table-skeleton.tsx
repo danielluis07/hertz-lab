@@ -34,7 +34,7 @@ const COLUMNS = [
   { header: "Categoria pai", bar: "w-24" },
   { header: "Nº de produtos", bar: "w-8 ml-auto" },
   { header: "Nº de subcategorias", bar: "w-8 ml-auto" },
-  { header: "Ações", bar: "w-8 ml-auto" },
+  { header: "Ações", bar: "w-24 ml-auto" },
 ];
 
 /**
