@@ -39,8 +39,14 @@ buy. Carts and Orders always reference a Variant, never a Product.
 
 **Brand** — the manufacturer of a Product (Sony, Sennheiser, JBL). A Brand is
 *filterable, never addressable*: it narrows a list of Products and is never a
-destination of its own, so it has no Slug. Its name is its identity, and two
-Brands cannot share one whatever the casing.
+destination of its own, so it has no Slug, no logo and no description — a Brand
+is a name, and the store knows nothing else about a manufacturer. That name is
+its identity, and two Brands cannot share one whatever the casing.
+
+A Brand is deleted, not archived, and only when **empty** — when no Product
+names it. Nothing in Order history refers to a Brand, so a manufacturer the
+store no longer stocks has no reason to survive. A Brand has no children, so
+*empty* here is one count where a Category's is two.
 
 **Category** — a node in the browse tree. Categories nest, and the nesting is
 **two levels deep**: a Category is either a *root* or the child of a root, and
