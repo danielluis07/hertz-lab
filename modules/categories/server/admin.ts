@@ -17,7 +17,12 @@ import { z } from "zod";
 import { db } from "@/db";
 import { category, product } from "@/db/schema";
 import { client } from "@/lib/s3";
-import { imageUploadSchema, IMAGE_EXTENSIONS } from "@/lib/utils/image";
+import {
+  imageUploadSchema,
+  IMAGE_CONTENT_TYPES,
+  IMAGE_EXTENSIONS,
+  IMAGE_MAX_BYTES,
+} from "@/lib/utils/image";
 import { adminProcedure, createTRPCRouter, FieldError } from "@/trpc/init";
 import { categoryListParamsSchema } from "@/modules/categories/admin/schemas";
 import type { CategorySortField } from "@/modules/categories/constants";
@@ -42,6 +47,96 @@ import {
  * knowing a rule (ADR-0007).
  */
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
+
+/** The same list the browser checks against, as the write reads it back off S3. */
+const ACCEPTED_IMAGE_TYPES = new Set<string>(IMAGE_CONTENT_TYPES);
+
+/** How the size ceiling is said, where the write says it. */
+const OVERSIZED_IMAGE_MESSAGE = `A imagem deve ter no máximo ${
+  IMAGE_MAX_BYTES / 1024 / 1024
+} MB.`;
+
+/**
+ * What an Admin reads for a key whose object is not there. One sentence for the
+ * two ways that happens — a key this uploader never minted, and a key whose
+ * upload never finished — because the act that fixes both is the same one.
+ */
+const MISSING_IMAGE_MESSAGE =
+  "Esta imagem não chegou ao servidor. Remova-a e envie o arquivo novamente.";
+
+/**
+ * **The real guard behind the picture** (ADR-0018). `presign` signs one method
+ * and cannot cap a size, so the ceiling the browser was told about is a ceiling
+ * only the browser obeys; this reads the object back and refuses one that is
+ * missing, oversized, or of a type the bucket is not meant to hold.
+ *
+ * The prefix is checked first, and `categorySchema` refines it too. That is not
+ * a duplicate for its own sake: this function is the whole gate on one key, and
+ * a gate that outsourced half of itself to a clause in another file is one
+ * edit away from being no gate at all. It is also what makes the `stat` below
+ * safe to run — a key that could name any object in the bucket would turn this
+ * lookup into a way of attaching one, which is the promise `createImageUpload`
+ * makes by minting keys server-side.
+ *
+ * `create` and `update` both run it **before** they open their transaction: a
+ * round trip has no business holding a write open, and a refusal here has
+ * written nothing.
+ *
+ * A Category with no picture is `null` and passes without a lookup, which is
+ * the common case on both writes.
+ *
+ * The refusal names the field, so the form renders it on the tile rather than
+ * as a toast the Admin has to match up with a picture by hand (ADR-0013).
+ */
+async function assertImageUploaded(key: string | null): Promise<void> {
+  if (key === null) return;
+
+  const refuse = (message: string) =>
+    new TRPCError({
+      code: "CONFLICT",
+      message,
+      cause: new FieldError("imageS3Key"),
+    });
+
+  if (!isCategoryImageKey(key)) throw refuse(MISSING_IMAGE_MESSAGE);
+
+  let stat;
+
+  try {
+    stat = await client.stat(key);
+  } catch {
+    throw refuse(MISSING_IMAGE_MESSAGE);
+  }
+
+  if (stat.size > IMAGE_MAX_BYTES) throw refuse(OVERSIZED_IMAGE_MESSAGE);
+
+  if (!ACCEPTED_IMAGE_TYPES.has(stat.type)) {
+    throw refuse("Envie uma imagem JPEG, PNG, WebP ou AVIF.");
+  }
+}
+
+/**
+ * The object behind a key that is leaving, deleted as part of the write that
+ * drops it (ADR-0018) — but **after** it commits, not inside it.
+ *
+ * Inside the transaction is the wrong way round for the reason the ADR gives:
+ * `client.delete` cannot roll back, so an `update` that deleted the old object
+ * and then rolled back would leave a live Category pointing at an object that
+ * is gone — a broken picture on the shop, which is the failure ADR-0018 spends
+ * orphans to avoid. After the commit the same failure leaves an unreferenced
+ * object instead, which is the thing this ADR already tolerates.
+ *
+ * So a failure here is swallowed, for the reason `discardImageUpload` swallows
+ * one: the save the Admin asked for succeeded, and a toast about a bucket is
+ * not something they can act on.
+ */
+async function deleteImageObject(key: string): Promise<void> {
+  try {
+    await client.delete(key);
+  } catch {
+    // Exactly the orphan an abandoned form leaves, and priced the same.
+  }
+}
 
 /**
  * The Category a row hangs under, joined to itself. `parentId` is nullable — a
@@ -229,10 +324,17 @@ export const adminRouter = createTRPCRouter({
    * the Select was filled is `NOT_FOUND`, while a parent that is a child is a
    * `CONFLICT` between the write and the shape the tree is in.
    *
+   * **The picture is checked before any of it**, outside the transaction:
+   * `assertImageUploaded` is a round trip to S3 (ADR-0018), and a round trip
+   * has no business holding a write open. A refusal there has written nothing,
+   * which is what makes the order safe rather than merely faster.
+   *
    * It returns the new id so the call site can push to the Category's page.
    */
-  create: adminProcedure.input(categorySchema).mutation(async ({ input }) =>
-    db.transaction(async (tx) => {
+  create: adminProcedure.input(categorySchema).mutation(async ({ input }) => {
+    await assertImageUploaded(input.imageS3Key);
+
+    return db.transaction(async (tx) => {
       if (input.parentId !== null) {
         const proposed = await findParentCandidate(tx, input.parentId);
 
@@ -278,8 +380,8 @@ export const adminRouter = createTRPCRouter({
         .returning({ id: category.id });
 
       return { id: created.id };
-    }),
-  ),
+    });
+  }),
 
   /**
    * The whole row behind `/admin/categories/[id]` — every column, because the
@@ -343,22 +445,36 @@ export const adminRouter = createTRPCRouter({
    * public URL (ADR-0005): renaming a Category leaves its address alone,
    * because a Slug that changes breaks every link that was ever shared.
    *
-   * The picture is not part of this write yet beyond the key riding through
-   * (ADR-0018); the post-commit deletion of a replaced object lands with the
-   * upload field.
+   * **The picture is the one thing this write does outside its transaction,
+   * at both ends.** The arriving key is `stat`ed before the transaction opens
+   * (`assertImageUploaded`), and the object behind the key that left is deleted
+   * after it commits (`deleteImageObject`) — the second because `client.delete`
+   * cannot roll back, so deleting inside would let a rolled-back save leave a
+   * live Category pointing at nothing (ADR-0018).
+   *
+   * "The key that left" is the row's old key whenever the payload names a
+   * different one **or none**: replacing the picture and removing it are the
+   * same fact about the object, and the object is what the Admin can see.
    */
   update: adminProcedure
     .input(categorySchema.extend({ id: z.string() }))
-    .mutation(async ({ input }) =>
-      db.transaction(async (tx) => {
+    .mutation(async ({ input }) => {
+      await assertImageUploaded(input.imageS3Key);
+
+      const written = await db.transaction(async (tx) => {
         // `FOR UPDATE` for the reason `findParentCandidate` gives at length:
         // this row's parenthood is what the two refusals below decide, and a
         // `create` proposing this Category as a parent locks the same row.
         // Without it the children check and the write are two moments that a
         // concurrent insert fits between, and the tree ends up three levels
         // deep with nothing having been violated.
+        //
+        // `imageS3Key` comes back with it because the picture leaving is
+        // decided by comparing what the row holds against what the payload
+        // names — read under the same lock that is about to write it, so the
+        // key deleted after the commit is the key this statement replaced.
         const [existing] = await tx
-          .select({ id: category.id })
+          .select({ id: category.id, imageS3Key: category.imageS3Key })
           .from(category)
           .where(eq(category.id, input.id))
           .limit(1)
@@ -445,9 +561,28 @@ export const adminRouter = createTRPCRouter({
           })
           .where(eq(category.id, input.id));
 
-        return { id: input.id };
-      }),
-    ),
+        // Handed out of the transaction rather than deleted inside it
+        // (`deleteImageObject`). Null covers both the Category that never had
+        // a picture and the save that kept the one it had.
+        return {
+          id: input.id,
+          droppedKey:
+            existing.imageS3Key !== null &&
+            existing.imageS3Key !== input.imageS3Key
+              ? existing.imageS3Key
+              : null,
+        };
+      });
+
+      // Committed, so the row that referenced this key no longer does,
+      // whatever happens next. The removal an Admin confirmed by saving
+      // (ADR-0018).
+      if (written.droppedKey !== null) {
+        await deleteImageObject(written.droppedKey);
+      }
+
+      return { id: written.id };
+    }),
 
   /**
    * Authorises one Category picture upload: takes what the browser knows about
@@ -472,7 +607,8 @@ export const adminRouter = createTRPCRouter({
    * mismatched one. So the input's `contentType` decides what the object will
    * be *called*, the input's `size` refuses the Admin before the bytes move,
    * and the write that keeps the key `stat`s the object as the guard that
-   * holds (ADR-0018). That write is the Category form's, and lands with it.
+   * holds (ADR-0018) — `assertImageUploaded`, which `create` and `update` both
+   * run before they open a transaction.
    *
    * The refusals an Admin reads for a bad file are `imageUploadSchema`'s, in
    * pt-BR beside the rule they enforce (ADR-0013).

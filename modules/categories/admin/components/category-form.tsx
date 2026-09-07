@@ -1,7 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Trash2Icon } from "lucide-react";
 import { Controller, useForm, type UseFormReturn } from "react-hook-form";
+import { ImageTile, ImageUploadField } from "@/components/image-upload-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,6 +31,8 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useSlugFromName } from "@/hooks/use-slug-from-name";
+import { s3KeyToUrl } from "@/lib/utils/url";
+import { useCategoryImage } from "@/modules/categories/admin/hooks/use-category-image";
 import {
   categorySchema,
   type CategoryFormValues,
@@ -70,9 +74,10 @@ const NO_PARENT_LABEL = "Nenhuma — categoria raiz";
  * put a rule in a `.tsx`, which `docs/CONVENTIONS.md` forbids — everything
  * below reads the *values* instead.
  *
- * **The picture is not a field here yet.** `categorySchema` carries
- * `imageS3Key` and `NEW_CATEGORY` opens it as `null`, so the value rides
- * through untouched until the upload field lands beside the rest (ADR-0018).
+ * **The picture is one field and no more.** `useCategoryImage` is called here
+ * rather than beside the tile because the submit button is its second reader: a
+ * Category must not be saved having lost a file that was still going up
+ * (ADR-0018).
  */
 export function CategoryForm({
   defaultValues,
@@ -89,6 +94,17 @@ export function CategoryForm({
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
     defaultValues,
+  });
+
+  /**
+   * The one picture a Category may carry, and the file that is still on its way
+   * to becoming it (ADR-0018). `persistedKey` is what the row was loaded
+   * holding, which is what decides whether a replaced key's object is ours to
+   * throw away now or the `update`'s to delete after it commits.
+   */
+  const image = useCategoryImage({
+    form,
+    persistedKey: defaultValues.imageS3Key,
   });
 
   /**
@@ -240,8 +256,63 @@ export function CategoryForm({
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-end">
-          <Button type="submit">
+        <Card>
+          <CardHeader>
+            <CardTitle>Imagem</CardTitle>
+            <CardDescription>
+              A imagem quadrada que representa a categoria na vitrine. A
+              categoria funciona sem ela.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* **The same picker a Product photograph goes through**
+                (ADR-0021), so there is one thing to learn: the same spec
+                panel, the same refusals, the same bar. `multiple` is passed
+                even though it is the default, because "a Category has one
+                picture" is the fact this line is here to state. What hangs
+                inside the tile is what differs, and for a Category it is
+                nothing — no alt text, no "Capa" badge, no Variant, none of
+                which is a rule about a Category. */}
+            <ImageUploadField
+              id="category-image"
+              // Picking a file when one is already saved replaces it, so the
+              // label says so rather than letting the Admin discover it.
+              label={image.s3Key ? "Trocar a imagem" : "Adicionar uma imagem"}
+              multiple={false}
+              upload={image.upload}>
+              {image.s3Key && (
+                <ImageTile src={s3KeyToUrl(image.s3Key)}>
+                  {/* Where the write's refusal lands: `create` and `update`
+                      `stat` the object and name this field, so the sentence
+                      arrives on the picture it is about (ADR-0013). */}
+                  <FieldError errors={[form.formState.errors.imageS3Key]} />
+
+                  {/* No confirmation: removing the picture is a field edit,
+                      undone by picking the file again (ADR-0018). */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={image.remove}>
+                    <Trash2Icon data-icon="inline-start" />
+                    Remover
+                  </Button>
+                </ImageTile>
+              )}
+            </ImageUploadField>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-end gap-3">
+          {/* Said out loud rather than left for the Admin to work out from a
+              greyed-out button (ADR-0018). */}
+          {image.upload.isUploading && (
+            <p className="text-muted-foreground text-sm">
+              Aguarde o envio da imagem para salvar.
+            </p>
+          )}
+
+          <Button type="submit" disabled={image.upload.isUploading}>
             {isPending && <Spinner data-icon="inline-start" />}
             {submitLabel}
           </Button>
