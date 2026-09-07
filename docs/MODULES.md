@@ -423,8 +423,15 @@ entire triad — it does not scaffold an empty one.
 and everything they drag in — `useFieldArray` field groups, the reconciling
 write, `admin/form-values.ts`; images and their whole apparatus
 (`use-product-images`, the two upload hooks, the `stat` guard — ADR-0018 — over
-the shared field and `lib/upload.ts`); a denormalised column another module
-maintains (ADR-0004, ADR-0020); and `server/queries.ts`, which exists only
-because a second procedure asked the same question. Most of the eight are a
-single table with a single form, and for them the anatomy stops at
-`schemas.ts`, `constants.ts`, `server/admin.ts`, the triad and the hooks.
+the shared field and `lib/upload.ts`); and a denormalised column another module
+maintains (ADR-0004, ADR-0020). Most of the eight are a single table with a
+single form, and for them the anatomy stops at `schemas.ts`, `constants.ts`,
+`server/admin.ts`, the triad and the hooks.
+
+**`server/queries.ts` used to be on that list and no longer is.** It was
+products-only for as long as products was the only module with a second
+procedure asking the first one's question; `categories` gained one with #61,
+where `update` asks `create`'s slug lookup with an `exceptId` and its parent
+lookup verbatim. Nothing about it was ever products-shaped — it is ADR-0010's
+rule reaching its trigger a second time, which is the *only* reason a module
+grows this file. It stays absent from every module that has not.

@@ -26,6 +26,10 @@ import {
   isCategoryImageKey,
 } from "@/modules/categories/images";
 import { categorySchema } from "@/modules/categories/schemas";
+import {
+  findCategoryIdWithSlug,
+  findParentCandidate,
+} from "@/modules/categories/server/queries";
 
 /**
  * How long a minted upload URL is good for. Long enough for a large photograph
@@ -215,9 +219,9 @@ export const adminRouter = createTRPCRouter({
    * generic pt-BR toast; asking first is what turns a Postgres index name into
    * a sentence under the field that caused it.
    *
-   * There is no `server/queries.ts` for that lookup yet: ADR-0010 creates a
-   * query layer on the **second** caller, and `update` (#61) is the one that
-   * will ask the same question with an `exceptId`.
+   * Both reads live in `server/queries.ts` now: ADR-0010 creates a query
+   * layer on the **second** caller, and `update` (#61) is it — asking the
+   * parent question verbatim, and the slug question with an `exceptId`.
    *
    * Every refusal names its field (ADR-0013), so the form renders the sentence
    * under the control that caused it and the global toast stands down. The
@@ -230,11 +234,7 @@ export const adminRouter = createTRPCRouter({
   create: adminProcedure.input(categorySchema).mutation(async ({ input }) =>
     db.transaction(async (tx) => {
       if (input.parentId !== null) {
-        const [proposed] = await tx
-          .select({ parentId: category.parentId })
-          .from(category)
-          .where(eq(category.id, input.parentId))
-          .limit(1);
+        const proposed = await findParentCandidate(tx, input.parentId);
 
         if (!proposed) {
           throw new TRPCError({
@@ -254,11 +254,9 @@ export const adminRouter = createTRPCRouter({
         }
       }
 
-      const [taken] = await tx
-        .select({ id: category.id })
-        .from(category)
-        .where(eq(category.slug, input.slug))
-        .limit(1);
+      // No `exceptId`: a Category that does not exist yet has no slug of its
+      // own to collide with.
+      const taken = await findCategoryIdWithSlug(tx, { slug: input.slug });
 
       if (taken) {
         throw new TRPCError({
@@ -282,6 +280,174 @@ export const adminRouter = createTRPCRouter({
       return { id: created.id };
     }),
   ),
+
+  /**
+   * The whole row behind `/admin/categories/[id]` — every column, because the
+   * form edits nearly all of them and the page's heading needs the name.
+   *
+   * **No counts and no parent name**, unlike `list`. Those two are on the list
+   * row so that an Admin reads why a Category may not be deleted *before*
+   * walking into the refusal (ADR-0023); here the parent is a Select the Admin
+   * is about to change, and it is bound to the `parentId` this returns.
+   *
+   * **Returns `null`, never `NOT_FOUND`.** A read resolves absence to
+   * "absent", and the page turns the `null` into `notFound()` — which keeps
+   * the control flow in `page.tsx`, where ADR-0006 already put the auth check
+   * (`docs/DATA-FLOW.md`). Writes are the other half of that asymmetry:
+   * `update` below throws.
+   */
+  byId: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const row = await db.query.category.findFirst({
+        where: { id: input.id },
+      });
+
+      return row ?? null;
+    }),
+
+  /**
+   * Rewrites one Category, in **one transaction**, in the same order `create`
+   * writes one — parent, then slug, then the row — with two additions the
+   * existence of a row before the write makes possible.
+   *
+   * **The first is the transaction's own first read.** A Category that no
+   * longer exists is a `NOT_FOUND` with no message of its own: the client's
+   * code map already says "Este item não existe mais. Atualize a página."
+   * (ADR-0013), and there is nothing to add to it. It is read inside the
+   * transaction rather than before it, so what the guard saw is what the
+   * `UPDATE` writes.
+   *
+   * **The second is ADR-0022's third refusal**, the one `create` cannot have:
+   * a Category that already has children may not itself take a parent, because
+   * a tree two levels deep has no third. Re-parenting is refused from this end
+   * rather than by dragging a subtree down. What stays allowed is everything
+   * that keeps the bound: a child moves between roots, a child is promoted to
+   * a root by choosing "Nenhuma — categoria raiz", and a childless root is
+   * demoted freely.
+   *
+   * Refusal 1 — a Category may not be its own parent — is checked here as well
+   * as kept out of the Admin's reach by `parentOptions({ excludeId })`. The
+   * Select cannot offer it; a payload can still name it, and it is the one
+   * choice the other two refusals would let through: a childless root naming
+   * itself passes "exists" and passes "is a root", and writes a row that is its
+   * own ancestor.
+   *
+   * **Both additions run before the parent is read, and that is the order an
+   * Admin wants.** A Category with children is refused *every* parent, so
+   * telling it the one it picked no longer exists would send it to pick
+   * another that is refused too. The refusal that closes the field comes
+   * before the refusal that only rejects one value in it.
+   *
+   * **`slug` is an ordinary editable field with no linkage to `name`.** It is a
+   * public URL (ADR-0005): renaming a Category leaves its address alone,
+   * because a Slug that changes breaks every link that was ever shared.
+   *
+   * The picture is not part of this write yet beyond the key riding through
+   * (ADR-0018); the post-commit deletion of a replaced object lands with the
+   * upload field.
+   */
+  update: adminProcedure
+    .input(categorySchema.extend({ id: z.string() }))
+    .mutation(async ({ input }) =>
+      db.transaction(async (tx) => {
+        // `FOR UPDATE` for the reason `findParentCandidate` gives at length:
+        // this row's parenthood is what the two refusals below decide, and a
+        // `create` proposing this Category as a parent locks the same row.
+        // Without it the children check and the write are two moments that a
+        // concurrent insert fits between, and the tree ends up three levels
+        // deep with nothing having been violated.
+        const [existing] = await tx
+          .select({ id: category.id })
+          .from(category)
+          .where(eq(category.id, input.id))
+          .limit(1)
+          .for("update");
+
+        // No message: an English one would win over the pt-BR code map on the
+        // client (ADR-0013), and no field either — the row the Admin is
+        // editing is not an input they can correct.
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        if (input.parentId !== null) {
+          if (input.parentId === input.id) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Uma categoria não pode ser a própria categoria pai.",
+              cause: new FieldError("parentId"),
+            });
+          }
+
+          // One row is the whole question: whether this Category has *any*
+          // child, not how many. `list` counts them because a number is what
+          // ADR-0023's delete rule is read in; a refusal only needs the first.
+          const [firstChild] = await tx
+            .select({ id: category.id })
+            .from(category)
+            .where(eq(category.parentId, input.id))
+            .limit(1);
+
+          if (firstChild) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                "Esta categoria já tem subcategorias e por isso não pode virar subcategoria de outra: as categorias têm no máximo dois níveis.",
+              cause: new FieldError("parentId"),
+            });
+          }
+
+          const proposed = await findParentCandidate(tx, input.parentId);
+
+          if (!proposed) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "A categoria pai escolhida não existe mais.",
+              cause: new FieldError("parentId"),
+            });
+          }
+
+          if (proposed.parentId !== null) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                "A categoria pai já é uma subcategoria: as categorias têm no máximo dois níveis.",
+              cause: new FieldError("parentId"),
+            });
+          }
+        }
+
+        // This Category holds its own URL, so a Slug nobody changed is not a
+        // collision with itself.
+        const taken = await findCategoryIdWithSlug(tx, {
+          slug: input.slug,
+          exceptId: input.id,
+        });
+
+        if (taken) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Já existe uma categoria com esta URL.",
+            cause: new FieldError("slug"),
+          });
+        }
+
+        // Field by field rather than by spread: `id` is the row being written
+        // and not a column to write, and `updatedAt` is `timestamps()`' own,
+        // maintained by `$onUpdate`.
+        await tx
+          .update(category)
+          .set({
+            name: input.name,
+            slug: input.slug,
+            description: input.description,
+            parentId: input.parentId,
+            imageS3Key: input.imageS3Key,
+          })
+          .where(eq(category.id, input.id));
+
+        return { id: input.id };
+      }),
+    ),
 
   /**
    * Authorises one Category picture upload: takes what the browser knows about

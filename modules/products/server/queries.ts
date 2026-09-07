@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, eq, inArray, ne } from "drizzle-orm";
-import { db } from "@/db";
+import type { Transaction } from "@/db";
 import { product, productVariant } from "@/db/schema";
 
 /**
@@ -16,14 +16,10 @@ import { product, productVariant } from "@/db/schema";
  * Arguments in, rows out: no class, no interface, no injection. **The refusals
  * stay with the procedures**, because ADR-0013 keeps a pt-BR sentence beside
  * the rule that raises it, and the two callers name different fields.
+ *
+ * Both take the caller's open `Transaction`, because both run inside a write
+ * and have to see what that write has done so far.
  */
-
-/**
- * A transaction handle, derived from `db` so it cannot drift from the driver —
- * the same type `rating.ts` takes. Both callers run inside their own write, so
- * the lookup has to see what that write has done so far.
- */
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * The id of the Product holding this slug, or `undefined` if it is free.
