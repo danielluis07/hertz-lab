@@ -333,6 +333,12 @@ export const adminRouter = createTRPCRouter({
    * itself passes "exists" and passes "is a root", and writes a row that is its
    * own ancestor.
    *
+   * **Both additions run before the parent is read, and that is the order an
+   * Admin wants.** A Category with children is refused *every* parent, so
+   * telling it the one it picked no longer exists would send it to pick
+   * another that is refused too. The refusal that closes the field comes
+   * before the refusal that only rejects one value in it.
+   *
    * **`slug` is an ordinary editable field with no linkage to `name`.** It is a
    * public URL (ADR-0005): renaming a Category leaves its address alone,
    * because a Slug that changes breaks every link that was ever shared.

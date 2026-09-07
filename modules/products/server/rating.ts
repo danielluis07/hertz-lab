@@ -1,15 +1,8 @@
 import "server-only";
 
 import { and, count, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
+import type { Transaction } from "@/db";
 import { product, review } from "@/db/schema";
-
-/**
- * A transaction handle, derived from `db` so it cannot drift from the driver.
- * The caller supplies it: this must run in the *same* transaction as the write
- * that triggered it.
- */
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Rebuild a Product's `rating_average` (hundredths) and `rating_count` from
