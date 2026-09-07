@@ -188,7 +188,8 @@ pt-BR toast.
 linkage to `name` — a slug is a public URL (ADR-0005), and silently rewriting it
 on a typo fix breaks every link that was ever shared. On **create** the field
 prefills from `slugify(name)` while the Admin has not touched it, which is form
-behaviour and not a rule. A collision on `slug`, or on a Variant `sku`, surfaces
+behaviour and not a rule — and since #60 it is `hooks/use-slug-from-name.ts`,
+shared with the Category form. A collision on `slug`, or on a Variant `sku`, surfaces
 as `CONFLICT` naming its own field.
 
 ### `publish` and `archive`

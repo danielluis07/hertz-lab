@@ -1,11 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
 import {
   Controller,
   useForm,
-  useWatch,
   type Control,
   type FieldPathByValue,
   type UseFormReturn,
@@ -36,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { slugify } from "@/lib/utils/slug";
+import { useSlugFromName } from "@/hooks/use-slug-from-name";
 import { ImageFields } from "@/modules/products/admin/components/image-fields";
 import { SpecificationFields } from "@/modules/products/admin/components/specification-fields";
 import { VariantFields } from "@/modules/products/admin/components/variant-fields";
@@ -155,10 +153,6 @@ export function ProductForm({
     defaultValues,
   });
 
-  // `useWatch`, never `form.watch()`: the latter re-renders on every keystroke
-  // of every field and opts this component out of the React Compiler.
-  const name = useWatch({ control: form.control, name: "name" });
-
   /**
    * The images field, and the uploads that have not become one yet (ADR-0018).
    * It is called here rather than inside `ImageFields` because the submit
@@ -168,27 +162,17 @@ export function ProductForm({
   const images = useProductImages({ form });
 
   /**
-   * The slug follows the name while the Admin has not typed in it, so nobody
-   * writes the same words twice. Form behaviour rather than a rule
-   * (`docs/PRODUCTS-ADMIN.md`), and it keys on the *values* rather than on a
-   * mode: an empty slug is a Product that has never had a URL, while a filled
-   * one is a public address (ADR-0005) that fixing a typo in the name must not
-   * silently rewrite.
+   * The slug prefills from the name until the Admin types in it. Form
+   * behaviour rather than a rule (`docs/PRODUCTS-ADMIN.md`), and it keys on
+   * the *values* rather than on a mode: an empty slug is a Product that has
+   * never had a URL, while a filled one is a public address (ADR-0005) that
+   * fixing a typo in the name must not silently rewrite.
    *
-   * Taking the field over is its own state and not `dirtyFields.slug`, which
-   * un-sets when a value returns to its default: an Admin who typed a slug and
-   * then cleared it would have the name start writing into it again.
+   * It was written here and moved to `hooks/` when the Category form became
+   * its second caller — the gate `docs/MODULES.md` sets, and the hook knows
+   * no rule about either entity.
    */
-  const followsName = defaultValues.slug === "";
-  const [hasTypedSlug, setHasTypedSlug] = useState(false);
-
-  useEffect(() => {
-    if (!followsName || hasTypedSlug) return;
-
-    // No `shouldDirty`: the prefill itself must not read as the Admin taking
-    // the field over, or the first keystroke in the name would end it.
-    form.setValue("slug", slugify(name));
-  }, [followsName, form, hasTypedSlug, name]);
+  const slug = useSlugFromName({ form, follows: defaultValues.slug === "" });
 
   return (
     <form
@@ -234,7 +218,7 @@ export function ProductForm({
                       {...field}
                       id={field.name}
                       onChange={(event) => {
-                        setHasTypedSlug(true);
+                        slug.stopFollowing();
                         field.onChange(event);
                       }}
                       placeholder="fone-de-ouvido-bluetooth-xyz"

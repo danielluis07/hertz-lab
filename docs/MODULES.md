@@ -278,6 +278,16 @@ The **pair of procedures** is what did not promote even so: each mints its own
 prefix and guards its own table, so it stays in the module, exactly as the table
 does above.
 
+`hooks/use-slug-from-name.ts` is the gate working at its ordinary pace, and
+worth recording because it is the first one to. The slug-follows-name prefill
+was written inside `product-form.tsx`, stayed there while products was its only
+caller, and moved out the day the **Category** form asked for it (#60) — no
+earlier, and with no third copy in between. It qualifies on both halves: it is
+form behaviour rather than a rule, because ADR-0005 has a Slug *chosen* and the
+prefill stops the moment it would overwrite a choice, so what the hook knows is
+the shape of a form with a `name` and a `slug` and nothing about what either
+identifies. The Brand form is the caller behind it.
+
 The same rule runs one level down: a component used by both `admin/` and
 `shop/` moves up to the module root; one used by a single audience stays put,
 however tempting the symmetry.

@@ -1,19 +1,31 @@
 import "server-only";
 
-import { asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  isNull,
+  ne,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
 import { category, product } from "@/db/schema";
 import { client } from "@/lib/s3";
 import { imageUploadSchema, IMAGE_EXTENSIONS } from "@/lib/utils/image";
-import { adminProcedure, createTRPCRouter } from "@/trpc/init";
+import { adminProcedure, createTRPCRouter, FieldError } from "@/trpc/init";
 import { categoryListParamsSchema } from "@/modules/categories/admin/schemas";
 import type { CategorySortField } from "@/modules/categories/constants";
 import {
   CATEGORY_IMAGE_PREFIX,
   isCategoryImageKey,
 } from "@/modules/categories/images";
+import { categorySchema } from "@/modules/categories/schemas";
 
 /**
  * How long a minted upload URL is good for. Long enough for a large photograph
@@ -143,6 +155,132 @@ export const adminRouter = createTRPCRouter({
       .select({ id: category.id, name: category.name })
       .from(category)
       .orderBy(asc(category.name)),
+  ),
+
+  /**
+   * The Categories a new or edited one may hang under: **roots only**, sorted
+   * by name, minus the row being edited.
+   *
+   * **`options` cannot serve this, and that is the point of a second
+   * procedure** (ADR-0022). `options` lists every Category, children
+   * included, and children cannot be parents — a tree two levels deep has no
+   * third. Filtering it in the browser would mean the form re-deriving "is a
+   * root" from a payload that does not carry `parentId`, and `options`
+   * promises in its own docblock to know nothing of the hierarchy. That
+   * promise is worth keeping: it is what stops the products filter from going
+   * stale every time the tree changes shape.
+   *
+   * `excludeId` is the Category being edited, which may not be its own parent
+   * — refusal 1 of ADR-0022, kept out of the Admin's reach rather than only
+   * refused after the save. It is optional because a Category that does not
+   * exist yet has no id to exclude.
+   *
+   * The list is short by construction and the input is one optional id, so it
+   * is read through `caller` by the route that composes the form — the same
+   * path `options` takes (ADR-0008's rule 4).
+   */
+  parentOptions: adminProcedure
+    .input(z.object({ excludeId: z.string().optional() }).optional())
+    .query(async ({ input }) =>
+      db
+        .select({ id: category.id, name: category.name })
+        .from(category)
+        .where(
+          and(
+            isNull(category.parentId),
+            input?.excludeId ? ne(category.id, input.excludeId) : undefined,
+          ),
+        )
+        .orderBy(asc(category.name)),
+    ),
+
+  /**
+   * Writes one Category, in **one transaction** — the first write this
+   * application has ever had against the `category` table.
+   *
+   * The order of what happens inside it is the whole of the procedure, and it
+   * is not arbitrary:
+   *
+   * **The parent is checked first** (ADR-0022). Two of the tree's three
+   * refusals apply to a row being created — the proposed parent must exist,
+   * and it must itself be a root. The third, "a Category that already has
+   * children may not take a parent", cannot: a Category being created has
+   * none. Both live here rather than in `categorySchema` because both need a
+   * read — the deliberate exception ADR-0022 takes to `docs/MODULES.md`'s
+   * *if it can be a pure function, it must be one*.
+   *
+   * **Then the slug**, and **inside the transaction**, because it has to see
+   * what this write has done so far. Read-then-write, so two Admins racing on
+   * one slug can still collide on the unique index and the loser reads the
+   * generic pt-BR toast; asking first is what turns a Postgres index name into
+   * a sentence under the field that caused it.
+   *
+   * There is no `server/queries.ts` for that lookup yet: ADR-0010 creates a
+   * query layer on the **second** caller, and `update` (#61) is the one that
+   * will ask the same question with an `exceptId`.
+   *
+   * Every refusal names its field (ADR-0013), so the form renders the sentence
+   * under the control that caused it and the global toast stands down. The
+   * codes differ because the failures do: a parent that has been deleted since
+   * the Select was filled is `NOT_FOUND`, while a parent that is a child is a
+   * `CONFLICT` between the write and the shape the tree is in.
+   *
+   * It returns the new id so the call site can push to the Category's page.
+   */
+  create: adminProcedure.input(categorySchema).mutation(async ({ input }) =>
+    db.transaction(async (tx) => {
+      if (input.parentId !== null) {
+        const [proposed] = await tx
+          .select({ parentId: category.parentId })
+          .from(category)
+          .where(eq(category.id, input.parentId))
+          .limit(1);
+
+        if (!proposed) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "A categoria pai escolhida não existe mais.",
+            cause: new FieldError("parentId"),
+          });
+        }
+
+        if (proposed.parentId !== null) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "A categoria pai já é uma subcategoria: as categorias têm no máximo dois níveis.",
+            cause: new FieldError("parentId"),
+          });
+        }
+      }
+
+      const [taken] = await tx
+        .select({ id: category.id })
+        .from(category)
+        .where(eq(category.slug, input.slug))
+        .limit(1);
+
+      if (taken) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Já existe uma categoria com esta URL.",
+          cause: new FieldError("slug"),
+        });
+      }
+
+      const [created] = await tx
+        .insert(category)
+        .values({
+          name: input.name,
+          slug: input.slug,
+          description: input.description,
+          parentId: input.parentId,
+          imageS3Key: input.imageS3Key,
+        })
+        .returning({ id: category.id });
+
+      return { id: created.id };
+    }),
   ),
 
   /**
