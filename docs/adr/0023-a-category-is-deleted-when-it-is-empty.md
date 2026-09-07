@@ -111,3 +111,31 @@ The reopening trigger is a Category that turns out to be referenced by something
 that outlives it — a saved search, a marketing campaign, an Order. Then the
 Product rule applies to Categories too, and this ADR is superseded rather than
 amended.
+
+## Amendments
+
+**The rule has a second subject: a Brand.** The Brands admin asked the same
+question this ADR answers, and the answer transferred without a second decision,
+so there is no ADR of its own to go looking for — `brands.admin.remove` is
+governed from here.
+
+It transfers because the load-bearing sentence never mentioned the browse tree:
+*nothing in Order history refers to a Category* is true of a Brand too, since
+ADR-0003 snapshots what an Order needs and the manufacturer is not among it, and
+`CONTEXT.md` already files both as things that are referenced and outlive any
+Product naming them. So a **Brand is deleted rather than archived, and only when
+empty.** `product.brand_id` is `on delete restrict`, exactly as
+`product.category_id` is, so the count is pre-checked in `remove` and the refusal
+is a pt-BR `CONFLICT` naming the number — the same shape with the noun changed —
+because a raw FK violation reaches the Admin as ADR-0013's *"algo deu errado"*.
+The delete confirms through `ConfirmProvider` for the reason given above:
+deleting is not undoable from the same screen.
+
+What does **not** transfer is everything that made this decision hard. A Brand
+has no `parent_id`, so there are no children to promote, re-parent or refuse;
+**empty is one count rather than both**, and the two-step job — emptying a
+branch from its leaves upward — collapses to one step. The title of this ADR
+stays as it is, because *empty means both* is the decision that was actually
+made here about Categories; a Brand borrows the reasoning, not the arithmetic.
+
+The reopening trigger above extends unchanged, with Brand read for Category.

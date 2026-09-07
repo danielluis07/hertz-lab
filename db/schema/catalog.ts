@@ -17,15 +17,32 @@ export const productStatusEnum = pgEnum("product_status", [
   "archived",
 ]);
 
-export const brand = pgTable("brand", {
-  id: id(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  /** S3 object key, never a URL: buckets and CDNs change, history should not. */
-  logoS3Key: text("logo_s3_key"),
-  ...timestamps(),
-});
+export const brand = pgTable(
+  "brand",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    // A Brand is a name and nothing else (`CONTEXT.md`). It had three more
+    // columns and not one of them was ever read: `slug`, because a Brand is
+    // filterable and never addressable, so there is no URL for a Slug to
+    // identify (#67); `description` and `logo_s3_key`, because no surface shows
+    // a manufacturer blurb or a manufacturer wordmark. `category.position`
+    // above is the same lesson learned once already — a column nothing touches
+    // is a trap for the next reader, who will reasonably assume it works.
+    //
+    // Dropping `logo_s3_key` is also what retires ADR-0018's claim that brands
+    // is the second uploader. It never was: the Category picture fired
+    // ADR-0007's gate first, and ADR-0021 decided there what promotes.
+    ...timestamps(),
+  },
+  (t) => [
+    // The identity of a Brand, in place of the dropped `slug` (#67). Two
+    // manufacturers cannot share a name whatever the casing, so the uniqueness
+    // is over `lower(name)` rather than the column: "JBL" and "jbl" are one
+    // Brand typed twice, and the database is where that stays true.
+    uniqueIndex("brand_name_unique_idx").on(sql`lower(${t.name})`),
+  ],
+);
 
 export const category = pgTable(
   "category",

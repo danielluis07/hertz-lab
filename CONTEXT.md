@@ -37,7 +37,16 @@ shoot.
 Every Product has at least one Variant, even when there is only one thing to
 buy. Carts and Orders always reference a Variant, never a Product.
 
-**Brand** — the manufacturer of a Product (Sony, Sennheiser, JBL).
+**Brand** — the manufacturer of a Product (Sony, Sennheiser, JBL). A Brand is
+*filterable, never addressable*: it narrows a list of Products and is never a
+destination of its own, so it has no Slug, no logo and no description — a Brand
+is a name, and the store knows nothing else about a manufacturer. That name is
+its identity, and two Brands cannot share one whatever the casing.
+
+A Brand is deleted, not archived, and only when **empty** — when no Product
+names it. Nothing in Order history refers to a Brand, so a manufacturer the
+store no longer stocks has no reason to survive. A Brand has no children, so
+*empty* here is one count where a Category's is two.
 
 **Category** — a node in the browse tree. Categories nest, and the nesting is
 **two levels deep**: a Category is either a *root* or the child of a root, and
@@ -70,7 +79,7 @@ Admin edits and the unit that is written — one form, one save, one transaction
 and nothing inside it is addressable on its own. Brand and Category are *not*
 part of it: they are referenced, and they outlive any Product that names them.
 
-**Slug** — the words that identify a Product, a Brand or a Category in a public
+**Slug** — the words that identify a Product or a Category in a public
 URL. A Slug is unique, it is chosen rather than derived, and it is not a name:
 renaming the thing leaves the Slug alone, because a Slug that changes breaks
 every link that was ever shared.

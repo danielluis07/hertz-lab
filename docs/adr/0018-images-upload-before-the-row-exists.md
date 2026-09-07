@@ -217,6 +217,28 @@ to avoid. Deleting after the commit trades that for an unreferenced object,
 which is the thing already tolerated here, so the failure is swallowed rather
 than raised.
 
+**The second uploader was never brands, and `brand.logoS3Key` is gone.** The
+`createImageUpload` section above says *"`brand.logoS3Key` means brands is a real
+second uploader… Nothing is promoted today: ADR-0007 promotes on the second
+caller, and brands is not built."* Both halves of that were overtaken before the
+column was ever read.
+
+The **Category picture** turned out to be the second uploader, and ADR-0021
+decided what promotion meant: the *field* promoted — the tile, the determinate
+bar, `putWithProgress`, the dimension read and the constants, into
+`lib/utils/image.ts`, `lib/upload.ts` and `hooks/use-image-upload.ts` — while the
+**procedure pair was refused promotion on its own merits**, because
+`createImageUpload` mints a per-module prefix and `discardImageUpload`'s guard is
+a query against one specific table. ADR-0007's gate has therefore already fired,
+and the surviving duplication is a decision with a reason, not a promotion
+pending a caller.
+
+The Brands admin then dropped `logo_s3_key` unread — nothing in the codebase ever
+referenced it outside its own column definition, and the store models no
+manufacturer wordmark (`CONTEXT.md`: *a Brand is a name*). So the sentence naming
+it now names nothing, and its removal costs the argument here nothing: brands was
+never what those two procedures were waiting on.
+
 **"The write is the real guard" covers what `stat` returns, and no more.**
 ADR-0021 adds a geometry contract — every photograph is square, with a floor and
 a ceiling on its dimensions — and none of it can be enforced here: `stat`
