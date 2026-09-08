@@ -47,6 +47,12 @@ what the grid will show. The alternative — render whatever is given and
 amputated in the grid and no way to tell whether the fault is the photograph or
 the CSS.
 
+**This rule has exactly one exception, and it is not catalogue data.** The home
+hero is a wide photograph committed to the repository rather than uploaded, so
+nothing here refuses it and nothing here describes it: ADR-0028. A reader who
+finds a non-square image in the Storefront should land on that file, not
+conclude this one is broken.
+
 ### The master is a source, not an asset
 
 `NEXT_PUBLIC_ASSET_URL`'s hostname joins `remotePatterns`, and the shop renders

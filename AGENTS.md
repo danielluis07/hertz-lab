@@ -27,3 +27,4 @@ User-facing copy is in Brazilian Portuguese.
 - Components contain only render logic (see docs/CONVENTIONS.md)
 - Project stack (see docs/STACK.md)
 - Storefront visual direction (see docs/DESIGN.md)
+- What is on each Storefront page (see docs/STOREFRONT.md)
