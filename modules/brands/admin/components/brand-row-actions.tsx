@@ -35,9 +35,11 @@ export function BrandRowActions({ id, name }: Pick<BrandRow, "id" | "name">) {
   const removeBrand = useRemoveBrand();
   const { confirm } = useConfirm();
 
-  // Gated on the variables the write carried, not on `isPending` alone: one
-  // hook instance is shared by every row that mounted it, so an ungated
-  // disable would freeze the whole table while one Brand is deleting.
+  // Gated on the variables the write carried, not on `isPending` alone. Each
+  // row calls the hook, so each row has its own observer today and the gate is
+  // a backstop: it is what keeps the disable on one row the day this hook is
+  // lifted to a shared instance, where an ungated `isPending` would freeze the
+  // whole table while one Brand is deleting.
   //
   // It is a backstop rather than the pending state an Admin reads: the delete
   // runs as the dialog's `action`, so the dialog is open over this row for the
