@@ -219,4 +219,81 @@ export const adminRouter = createTRPCRouter({
         return { id: input.id };
       }),
     ),
+
+  /**
+   * A Brand goes away, and only when no Product names it. **This is ADR-0023
+   * with the noun changed**: its amendment records the transfer, so the rule is
+   * applied here rather than decided again, and there is no deletion ADR of
+   * this module's own to go looking for.
+   *
+   * **One count, not two.** A Category is empty when both its Products and its
+   * child Categories are zero; a Brand has no children, so `product.brand_id`
+   * is the only key pointing this way and *empty* is one number — the Admin's
+   * "from the leaves upward" two-step collapses to one step. Counting
+   * `product` from inside `brands` is ADR-0024: how many rows hold a key to
+   * this one, read through the key that already points this way, and nothing
+   * else of that table.
+   *
+   * **The count is pre-checked rather than left to the database.**
+   * `product.brand_id` stays `on delete restrict`, but a caught FK violation
+   * can only say that there were *some* Products, and reaches the Admin as
+   * ADR-0013's *"algo deu errado"*; the number is what turns the refusal into
+   * a work order. The constraint stays as the backstop for the race where a
+   * Product is assigned to this Brand between the count and the delete — which
+   * is also why the row is read `FOR UPDATE` and the count and the delete sit
+   * in one transaction.
+   *
+   * **A row that is gone is a bare `NOT_FOUND`**, for `update`'s reason: an
+   * English message would win over the client's pt-BR code map, which already
+   * says *"Este item não existe mais. Atualize a página."*
+   *
+   * Neither refusal carries a `field` — there is no form here, the Admin is
+   * looking at a row — so ADR-0013's global tier renders them as toasts.
+   *
+   * **Nothing follows the commit.** A Category deletes its picture after the
+   * row (ADR-0018); a Brand has no object, so the transaction is the whole
+   * write.
+   *
+   * **There is no pure `isRemovable`.** The rule's whole content is *the count
+   * is zero*, `Excluir` renders on every row, and no client asks it — ADR-0023
+   * carries that call, and extracting one to earn a test would produce a test
+   * of the fetch (ADR-0017).
+   */
+  remove: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) =>
+      db.transaction(async (tx) => {
+        // Only the id: nothing else of the row decides anything here — a Brand
+        // is a name, and there is no S3 key to carry out of the transaction.
+        // `FOR UPDATE` is what the read is for.
+        const [existing] = await tx
+          .select({ id: brand.id })
+          .from(brand)
+          .where(eq(brand.id, input.id))
+          .limit(1)
+          .for("update");
+
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // Every Product naming this Brand, archived included: that is the set
+        // the foreign key protects, so it is the number the refusal is about.
+        const [products] = await tx
+          .select({ value: count() })
+          .from(product)
+          .where(eq(product.brandId, input.id));
+
+        if (products.value > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Não é possível excluir: ${products.value} ${
+              products.value === 1 ? "produto está" : "produtos estão"
+            } nesta marca.`,
+          });
+        }
+
+        await tx.delete(brand).where(eq(brand.id, input.id));
+
+        return { id: input.id };
+      }),
+    ),
 });

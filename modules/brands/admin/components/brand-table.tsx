@@ -104,7 +104,8 @@ export function BrandTable({ input }: { input: BrandListInput }) {
                       client component and no row object is serialized into
                       the document (ADR-0016). What it mounts is this row's
                       own edit dialog, unmounted until the Admin opens it
-                      (ADR-0026). */}
+                      (ADR-0026), and its "Excluir" — which renders on every
+                      row whatever the count beside it says (ADR-0023). */}
                   <BrandRowActions id={brand.id} name={brand.name} />
                 </TableCell>
               </TableRow>
