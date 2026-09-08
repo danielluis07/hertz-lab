@@ -28,35 +28,25 @@ export function formatBasisPoints(basisPoints: number): string {
 }
 
 /**
- * Parse pt-BR money input into BRL cents. Returns `null` when the input is not
- * a number, so a caller can distinguish "empty field" from "zero".
+ * Read BRL cents out of a money box as it is being typed. Every digit in the
+ * string is a centavo, filled right to left: `"1"` is `R$ 0,01` and `"1234"`
+ * is `R$ 12,34`. Everything else — the `R$`, the dots, the comma — is
+ * punctuation `formatBRL` put there and this reads straight back out, which is
+ * what lets the box be re-rendered on every keystroke without its value
+ * drifting: `parseBRLInput(formatBRL(cents)) === cents`.
  *
- * Accepts `"R$ 1.234,56"`, `"1.234,56"`, `"1234,56"` and `"1234"`. Also accepts
- * `"1234.56"` — a trailing dot followed by exactly two digits is read as a
- * decimal separator, because that is what a keyboard-driven admin types.
+ * Returns `null` when there is no digit at all, so a caller can tell an
+ * emptied box from a zero. A pasted `"R$ 1.234,56"` lands on `123456` because
+ * those are its digits; a pasted `"1234"` reads as `R$ 12,34`, since a digit
+ * means a centavo here and a paste cannot be told apart from typing.
  */
-export function parseBRL(input: string): number | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
+export function parseBRLInput(input: string): number | null {
+  const digits = input.replace(/\D/g, "");
+  if (!digits) return null;
 
-  const digitsAndSeparators = trimmed.replace(/[^\d.,-]/g, "");
-  if (!/\d/.test(digitsAndSeparators)) return null;
-
-  let normalized: string;
-  if (digitsAndSeparators.includes(",")) {
-    // pt-BR: dots are thousands separators, the comma is the decimal point.
-    normalized = digitsAndSeparators.replace(/\./g, "").replace(",", ".");
-  } else if (/\.\d{2}$/.test(digitsAndSeparators)) {
-    // A single trailing `.dd` is a decimal point, not a thousands separator.
-    normalized = digitsAndSeparators.replace(/\.(?=.*\.)/g, "");
-  } else {
-    normalized = digitsAndSeparators.replace(/\./g, "");
-  }
-
-  const value = Number(normalized);
-  if (!Number.isFinite(value)) return null;
-
-  return Math.round(value * 100);
+  // Truncated before `Number`: an Admin leaning on a key would otherwise leave
+  // the safe-integer range and watch the amount round itself under the cursor.
+  return Number(digits.slice(0, 15));
 }
 
 const rating = new Intl.NumberFormat(LOCALE, {

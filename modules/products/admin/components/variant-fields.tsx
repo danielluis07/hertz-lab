@@ -16,7 +16,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { formatBRL, parseBRL } from "@/lib/utils/format";
+import { formatBRL, parseBRLInput } from "@/lib/utils/format";
 import { EMPTY_VARIANT } from "@/modules/products/constants";
 import type { ProductFormValues } from "@/modules/products/schemas";
 
@@ -202,15 +202,22 @@ function VariantRow({
 }
 
 /**
- * A price. **The form value is BRL cents** (`CONTEXT.md`) and the box holds
- * what the Admin typed, which is why this input is uncontrolled: feeding the
- * cents back through `formatBRL` on every keystroke would rewrite "12,30" as
- * "12,3" under the cursor. `parseBRL` reads "R$ 1.234,56", "1.234,56" and
- * "1234" alike, so it takes back whatever `formatBRL` rendered on an edit.
+ * A price. **The form value is BRL cents** (`CONTEXT.md`) and the box shows
+ * those cents through `formatBRL`, re-rendered on every keystroke: the Admin
+ * types `1`, `2`, `3`, `0` and watches "R$ 0,01", "R$ 0,12", "R$ 1,23",
+ * "R$ 12,30" — the amount is never in a half-typed state the schema would have
+ * to guess at.
  *
- * An unreadable amount becomes `NaN`, which the schema refuses with "Informe o
- * preço." — the same sentence an empty box gets, because to an Admin they are
- * the same mistake.
+ * Controlled, and it has to be: the value comes from React Hook Form, so an
+ * uncontrolled box fed a changing `defaultValue` is the one thing Base UI's
+ * `FieldControl` warns about. `parseBRLInput` is the exact inverse of
+ * `formatBRL` over digits, which is what keeps the round trip from drifting.
+ *
+ * Zero renders as an empty box rather than "R$ 0,00", so a fresh row shows its
+ * placeholder — and typing a leading `0` is the same no-op it would be in any
+ * other number. An emptied box becomes `NaN`, which the schema refuses with
+ * "Informe o preço.", the sentence a zero gets too, because to an Admin they
+ * are the same mistake.
  */
 function MoneyField({
   control,
@@ -233,9 +240,9 @@ function MoneyField({
             name={field.name}
             ref={field.ref}
             onBlur={field.onBlur}
-            defaultValue={field.value ? formatBRL(field.value) : ""}
+            value={field.value ? formatBRL(field.value) : ""}
             onChange={(event) =>
-              field.onChange(parseBRL(event.target.value) ?? Number.NaN)
+              field.onChange(parseBRLInput(event.target.value) ?? Number.NaN)
             }
             inputMode="decimal"
             placeholder="R$ 0,00"
@@ -272,8 +279,10 @@ function OptionalMoneyField({
             name={field.name}
             ref={field.ref}
             onBlur={field.onBlur}
-            defaultValue={field.value ? formatBRL(field.value) : ""}
-            onChange={(event) => field.onChange(parseBRL(event.target.value))}
+            value={field.value ? formatBRL(field.value) : ""}
+            onChange={(event) =>
+              field.onChange(parseBRLInput(event.target.value))
+            }
             inputMode="decimal"
             placeholder="R$ 0,00"
             aria-invalid={fieldState.invalid}

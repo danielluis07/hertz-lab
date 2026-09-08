@@ -3,7 +3,7 @@ import {
   formatBasisPoints,
   formatBRL,
   formatRating,
-  parseBRL,
+  parseBRLInput,
 } from "@/lib/utils/format";
 
 // Intl uses a non-breaking space after "R$"; normalise so assertions read plainly.
@@ -29,38 +29,42 @@ describe("formatBasisPoints", () => {
   });
 });
 
-describe("parseBRL", () => {
+describe("parseBRLInput", () => {
   test("round-trips what formatBRL produced", () => {
     for (const cents of [0, 99, 123456, 1234567890]) {
-      expect(parseBRL(formatBRL(cents))).toBe(cents);
+      expect(parseBRLInput(formatBRL(cents))).toBe(cents);
     }
   });
 
-  test("accepts pt-BR notation with and without separators", () => {
-    expect(parseBRL("1.234,56")).toBe(123456);
-    expect(parseBRL("1234,56")).toBe(123456);
-    expect(parseBRL("1234")).toBe(123400);
-    expect(parseBRL("R$ 1.234,56")).toBe(123456);
+  test("fills the amount from the right, one keystroke at a time", () => {
+    // What the box holds after each of "1", "2", "3", "0" — the value it sends
+    // back, and the string formatBRL renders it as on the next keystroke.
+    expect(parseBRLInput("R$ 0,001")).toBe(1);
+    expect(parseBRLInput("R$ 0,012")).toBe(12);
+    expect(parseBRLInput("R$ 0,123")).toBe(123);
+    expect(parseBRLInput("R$ 1,230")).toBe(1230);
   });
 
-  test("reads a lone trailing .dd as a decimal point", () => {
-    expect(parseBRL("1234.56")).toBe(123456);
+  test("takes back a digit when one is deleted", () => {
+    expect(parseBRLInput("R$ 12,3")).toBe(123);
+    expect(parseBRLInput("R$ 1,2")).toBe(12);
   });
 
-  test("reads dots as thousands separators when they are not a lone .dd", () => {
-    expect(parseBRL("1.234")).toBe(123400);
-    expect(parseBRL("1.234.567")).toBe(123456700);
+  test("keeps the digits of a pasted amount", () => {
+    expect(parseBRLInput("R$ 1.234,56")).toBe(123456);
+    expect(parseBRLInput("1.234,56")).toBe(123456);
+    expect(parseBRLInput("1234,56")).toBe(123456);
   });
 
-  test("distinguishes empty from zero", () => {
-    expect(parseBRL("")).toBeNull();
-    expect(parseBRL("   ")).toBeNull();
-    expect(parseBRL("R$")).toBeNull();
-    expect(parseBRL("0")).toBe(0);
+  test("distinguishes an emptied box from a zero", () => {
+    expect(parseBRLInput("")).toBeNull();
+    expect(parseBRLInput("   ")).toBeNull();
+    expect(parseBRLInput("R$")).toBeNull();
+    expect(parseBRLInput("0")).toBe(0);
   });
 
-  test("rounds rather than truncating", () => {
-    expect(parseBRL("0,005")).toBe(1);
+  test("stays inside the safe-integer range however long the input", () => {
+    expect(Number.isSafeInteger(parseBRLInput("9".repeat(40)))).toBe(true);
   });
 });
 
