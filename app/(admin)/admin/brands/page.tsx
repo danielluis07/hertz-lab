@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/auth-guards";
+import { BrandCreateForm } from "@/modules/brands/admin/components/brand-create-form";
 import { BrandTable } from "@/modules/brands/admin/components/brand-table";
 import { BrandTableSkeleton } from "@/modules/brands/admin/components/brand-table-skeleton";
 import { parseBrandListParams } from "@/modules/brands/admin/schemas";
@@ -11,9 +12,10 @@ import { HydrateClient, prefetch, trpc } from "@/trpc/server";
  * string, and `?sortBy=a&sortBy=b` is an array. It is what gives the ADR-0014
  * schema something to coerce.
  *
- * There is no "Nova marca" link beside the heading: a Brand's form opens in a
- * dialog rather than at a route (ADR-0026), so the button that opens it belongs
- * to the surface that owns the dialog, and it arrives with it.
+ * "Nova marca" beside the heading is a **button and not a link**: a Brand's
+ * form opens in a dialog rather than at a route (ADR-0026), so what sits here
+ * is the wrapper that owns that dialog — its trigger, its `open` state and its
+ * chrome — rather than an `<a>` to a `new/page.tsx` this module no longer has.
  */
 const AdminBrandsPage = async ({
   searchParams,
@@ -37,8 +39,16 @@ const AdminBrandsPage = async ({
       <div className="flex flex-col gap-6">
         {/* The page owns its heading (ADR-0015): the admin frame is authored
             global and knows shapes rather than which list this is, so there
-            are no breadcrumbs here either. */}
-        <h1 className="text-2xl font-semibold">Marcas</h1>
+            are no breadcrumbs here either.
+
+            The create dialog sits beside it and **outside the table**, so an
+            Admin with no Brands at all reads the empty state's advice with the
+            button that acts on it in view — a create affordance living in the
+            table would vanish exactly when it is most needed. */}
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">Marcas</h1>
+          <BrandCreateForm />
+        </div>
 
         {/* Suspense is per data section and owned by the page. There is no
             loading.tsx under admin: it would replace this shell as well.

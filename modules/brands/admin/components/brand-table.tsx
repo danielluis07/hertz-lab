@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { buildSortHref } from "@/lib/utils/sort";
+import { BrandRowActions } from "@/modules/brands/admin/components/brand-row-actions";
 import type { BrandListInput } from "@/modules/brands/admin/schemas";
 import {
   BRAND_SORT_DEFAULTS,
@@ -98,10 +99,14 @@ export function BrandTable({ input }: { input: BrandListInput }) {
                 <TableCell className="text-right tabular-nums">
                   {brand.productCount}
                 </TableCell>
-                {/* Empty until the row gains its actions: the dialog form and
-                    the delete confirm are the next issue's, and an empty cell
-                    is what keeps this column's width honest in the meantime. */}
-                <TableCell className="text-right" />
+                <TableCell className="text-right">
+                  {/* Two scalars, never the row: the actions cell is a leaf
+                      client component and no row object is serialized into
+                      the document (ADR-0016). What it mounts is this row's
+                      own edit dialog, unmounted until the Admin opens it
+                      (ADR-0026). */}
+                  <BrandRowActions id={brand.id} name={brand.name} />
+                </TableCell>
               </TableRow>
             ))
           )}
