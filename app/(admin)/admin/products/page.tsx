@@ -1,5 +1,8 @@
 import { Suspense } from "react";
+import Link from "next/link";
+import { Plus } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
+import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth-guards";
 import { ProductTable } from "@/modules/products/admin/components/product-table";
 import { ProductTableSkeleton } from "@/modules/products/admin/components/product-table-skeleton";
@@ -41,7 +44,15 @@ const AdminProductsPage = async ({
   return (
     <HydrateClient>
       <div className="group flex flex-col gap-6">
-        <h1 className="text-2xl font-semibold">Produtos</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">Produtos</h1>
+          <Button
+            nativeButton={false}
+            render={<Link href="/admin/products/new" />}>
+            <Plus data-icon="inline-start" />
+            Criar produto
+          </Button>
+        </div>
 
         {/* Outside the Suspense boundary: the bar is shell rather than data,
             and a filter change must not replace the control that made it. It
