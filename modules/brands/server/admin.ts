@@ -1,12 +1,16 @@
 import "server-only";
 
+import { TRPCError } from "@trpc/server";
 import { asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import { brand, product } from "@/db/schema";
-import { adminProcedure, createTRPCRouter } from "@/trpc/init";
+import { adminProcedure, createTRPCRouter, FieldError } from "@/trpc/init";
 import { brandListParamsSchema } from "@/modules/brands/admin/schemas";
 import type { BrandSortField } from "@/modules/brands/constants";
+import { brandSchema } from "@/modules/brands/schemas";
+import { findBrandIdWithName } from "@/modules/brands/server/queries";
 
 /**
  * How many Products name this Brand — **every** one of them, archived
@@ -103,4 +107,116 @@ export const adminRouter = createTRPCRouter({
       .from(brand)
       .orderBy(asc(brand.name)),
   ),
+
+  /**
+   * A new manufacturer, from the dialog beside the list's heading (ADR-0026).
+   *
+   * **One transaction holding a read and a write**, and the order inside it is
+   * the whole of the procedure: the name is asked about first, and *inside*,
+   * because the lookup has to see what this write has done so far.
+   *
+   * The question is `findBrandIdWithName`'s and it is asked in SQL over
+   * `lower(name)` — the expression `brand_name_unique_idx` is built over — so
+   * the pre-check and the constraint refuse the same set of names rather than
+   * two subtly different ones.
+   *
+   * **The pre-check does not replace the index.** Two Admins racing on one
+   * name can both read it free and only one can insert it; the loser's
+   * statement lands on the unique index and degrades to ADR-0013's generic
+   * pt-BR toast. That is the trade the read buys: the common case gets a
+   * sentence under the field that caused it, instead of a Postgres index name
+   * nothing on the client could turn into copy.
+   *
+   * **Nothing is normalised on write** (`CONTEXT.md`). "JBL" is stored as
+   * "JBL"; the index is what makes "Sony" and "SONY" one manufacturer.
+   *
+   * It returns the new id for symmetry with `categories.admin.create` and for
+   * whatever reads it next — the dialog itself only closes (ADR-0026), because
+   * a Brand has no page to push to.
+   */
+  create: adminProcedure.input(brandSchema).mutation(async ({ input }) =>
+    db.transaction(async (tx) => {
+      // No `exceptId`: a Brand that does not exist yet has no name of its own
+      // to collide with.
+      const taken = await findBrandIdWithName(tx, { name: input.name });
+
+      if (taken) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Já existe uma marca com este nome.",
+          cause: new FieldError("name"),
+        });
+      }
+
+      const [created] = await tx
+        .insert(brand)
+        .values({ name: input.name })
+        .returning({ id: brand.id });
+
+      return { id: created.id };
+    }),
+  ),
+
+  /**
+   * A rename, from the dialog in the row (ADR-0026). A Brand is a name, so
+   * this is the only edit there is.
+   *
+   * Same transaction and same order as `create`, with one addition ahead of
+   * it: **the row is read `FOR UPDATE` first.** The lock is what makes the
+   * name check and the write one moment rather than two — without it a
+   * concurrent rename of this same row fits between them, and the row that
+   * commits second overwrites a name the first was refused for.
+   *
+   * **A row that is gone is a bare `NOT_FOUND`.** No message, because an
+   * English one would win over the client's pt-BR code map, which already
+   * says *"Este item não existe mais. Atualize a página."*; and no field,
+   * because the Brand an Admin is editing is not an input they can correct
+   * (ADR-0013).
+   *
+   * The lookup then runs with `exceptId`, so a Brand does not collide with
+   * itself — an Admin correcting "sony" to "Sony" is changing the row's own
+   * name, not taking another's.
+   */
+  update: adminProcedure
+    .input(brandSchema.extend({ id: z.string() }))
+    .mutation(async ({ input }) =>
+      db.transaction(async (tx) => {
+        // Only the id: nothing else of the row decides anything here, and a
+        // procedure selecting columns it does not decide on invites the next
+        // reader to use them. `FOR UPDATE` is what the read is for.
+        const [existing] = await tx
+          .select({ id: brand.id })
+          .from(brand)
+          .where(eq(brand.id, input.id))
+          .limit(1)
+          .for("update");
+
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // This Brand holds its own name, so a name nobody changed — or one
+        // whose casing was corrected — is not a collision with itself.
+        const taken = await findBrandIdWithName(tx, {
+          name: input.name,
+          exceptId: input.id,
+        });
+
+        if (taken) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Já existe uma marca com este nome.",
+            cause: new FieldError("name"),
+          });
+        }
+
+        // Field by field rather than by spread: `id` is the row being written
+        // and not a column to write, and `updatedAt` is `timestamps()`' own,
+        // maintained by `$onUpdate`.
+        await tx
+          .update(brand)
+          .set({ name: input.name })
+          .where(eq(brand.id, input.id));
+
+        return { id: input.id };
+      }),
+    ),
 });
