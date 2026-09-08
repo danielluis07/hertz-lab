@@ -124,3 +124,11 @@ its author to write it. Reviews are moderated before they appear.
 
 **Wishlist** — the Variants a User has saved for later. One implicit list per
 User; saving is an act, not an object.
+
+## Surfaces
+
+**Storefront** — the surface a shopper sees: every route group except
+`(admin)`. It spans browsing, the cart, checkout, authentication and the
+account, so it is wider than the `(shop)` route group that sits inside it —
+*"the shop" is not a synonym for the Storefront*. The Storefront and the admin
+are the two audiences, and they look nothing alike by decision.

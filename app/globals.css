@@ -9,6 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-heading: var(--font-sans);
+  --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,7 +48,59 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* The Storefront owns :root; the admin opts out through `.admin` below.
+   Values and the rules that govern them: docs/DESIGN.md, ADR-0027. */
 :root {
+  /* Paper and ink are warm, never pure white on pure black. */
+  --background: oklch(0.985 0.004 85);
+  --foreground: oklch(0.16 0.005 60);
+  /* A card sits on the paper, so it shares it: a border defines the card,
+     never a fill. Only floating surfaces lift to white. */
+  --card: oklch(0.985 0.004 85);
+  --card-foreground: oklch(0.16 0.005 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.005 60);
+  /* Signal vermilion: the one chromatic value, on at most one element per
+     viewport. Held at L=0.55 so white text on it clears AA. */
+  --primary: oklch(0.55 0.18 38);
+  --primary-foreground: oklch(0.99 0.004 85);
+  --secondary: oklch(0.955 0.005 85);
+  --secondary-foreground: oklch(0.16 0.005 60);
+  --muted: oklch(0.955 0.005 85);
+  --muted-foreground: oklch(0.48 0.008 70);
+  /* shadcn's `accent` is a hover surface, not the brand accent. */
+  --accent: oklch(0.94 0.006 85);
+  --accent-foreground: oklch(0.16 0.005 60);
+  /* Darker and redder than --primary, because the two share a family.
+     Storefront destructive actions are never a filled button (DESIGN.md). */
+  --destructive: oklch(0.47 0.2 25);
+  --border: oklch(0.9 0.004 85);
+  --input: oklch(0.88 0.004 85);
+  --ring: oklch(0.55 0.18 38);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.25rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+/* The admin is the exception, and the exception is what carries the annotation.
+   The marker class is applied once, on app/(admin)/layout.tsx, but the tokens
+   are hoisted to the root with :has() so that portalled surfaces — dialogs,
+   popovers, toasts, all of which render into <body> outside the admin subtree —
+   inherit them too (ADR-0027). Restores stock shadcn neutral and Inter; chart
+   and sidebar tokens are inherited from :root unchanged. */
+:root:has(.admin) {
+  --font-sans: var(--font-inter);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -66,22 +119,12 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Dormant: next-themes is not installed and nothing applies .dark. The
+   Storefront is light-only by decision (docs/DESIGN.md); this block is kept so
+   a future admin dark mode has somewhere to land. */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

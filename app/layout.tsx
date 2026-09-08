@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { geistSans, inter } from "@/fonts";
+import { inter, plexMono, plexSans } from "@/fonts";
 import { TRPCReactProvider } from "@/trpc/client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -20,7 +20,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={cn(
         "h-full antialiased font-sans",
-        geistSans.variable,
+        plexSans.variable,
+        plexMono.variable,
         inter.variable,
       )}>
       <body className="min-h-full flex flex-col">

@@ -4,6 +4,9 @@ import { ConfirmProvider } from "@/providers/confirm-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 
+// The `admin` class is this route group's opt-out from the Storefront tokens:
+// globals.css hoists the stock shadcn palette and Inter to the root whenever it
+// is present (ADR-0027). It carries no styles of its own.
 // No authorisation check and no data fetching here: every admin page calls
 // requireAdmin() in its own body (ADR-0006). No defaultOpen either, so the
 // sidebar opens expanded after every reload (ADR-0015).
@@ -11,7 +14,7 @@ export default function AdminLayout({ children }: LayoutProps<"/">) {
   return (
     <ConfirmProvider>
       <Toaster />
-      <SidebarProvider>
+      <SidebarProvider className="admin">
         <AdminSidebar />
         <SidebarInset>
           <AdminHeader />
