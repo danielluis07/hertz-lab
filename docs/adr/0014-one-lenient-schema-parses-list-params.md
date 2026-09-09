@@ -92,7 +92,7 @@ reintroduced one layer down.
 **A programmatic caller passing garbage gets defaults, silently, rather than an
 error.** This is the cost, stated plainly. It is acceptable for a list read and
 would not be for a write: mutations keep strict inputs and real `TRPCError`
-codes, which is the same read/write asymmetry `docs/DATA-FLOW.md` records for
+codes, which is the same read/write asymmetry `docs/READ-PATH.md` records for
 absence — reads resolve to "absent", writes resolve to "refused".
 
 **`parse` cannot throw**, since every field catches. The page calls it without a
@@ -105,6 +105,6 @@ cannot leak into the input or perturb the query key.
 an array, fails the enum, and lands on the catch. No `preprocess` is needed, and
 no list surface has to think about parameter multiplicity.
 
-**The schema's keys are the parameter names** — see `docs/DATA-FLOW.md`. In
+**The schema's keys are the parameter names** — see `docs/READ-PATH.md`. In
 admin the URL key and the input field are the same string, so there is no names
 table and no mapping; the schema is the single declaration.

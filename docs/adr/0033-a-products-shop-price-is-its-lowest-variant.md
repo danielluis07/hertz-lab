@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Price lives on the Variant, not the Product (ADR-0001). `docs/DATA-FLOW.md`
+Price lives on the Variant, not the Product (ADR-0001). `docs/READ-PATH.md`
 used that fact to refuse price sorting on the **admin** list, and refused it
 honestly: sorting a Product by price "first requires deciding *which* Variant's
 price. That is a real decision and not this one."
@@ -60,7 +60,7 @@ none of this is extracted to a `<concept>.ts`. It lives in
 
 ## Consequences
 
-`docs/DATA-FLOW.md`'s deferral is discharged, and only for the shop. The admin
+`docs/READ-PATH.md`'s deferral is discharged, and only for the shop. The admin
 list still does not sort by price, and its reason is untouched: an Admin's
 question about price is about a *Variant*, which is a row in the form, not a
 column in the catalogue.

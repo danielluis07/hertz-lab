@@ -52,7 +52,7 @@ change drops the page**. Each audience owns a thin arranging component: admin's
 flat row stays where it is, and the shop's composes the same controls into its
 Sheet.
 
-`docs/DATA-FLOW.md`'s heading narrows from _"one filter bar owns every write"_ to
+`docs/READ-PATH.md`'s heading narrows from _"one filter bar owns every write"_ to
 **one control set owns every write**, which is what it always meant — the
 sentence was true of admin because admin had one arrangement.
 
@@ -70,7 +70,7 @@ second caller of `useQueryParam`'s pattern rather than a new one.
 **On the shop, sort is a filter.** `?ordenar=` is written through
 `buildFilterHref` like any other parameter, so `lib/utils/sort.ts` gains **no
 shop caller at all** and sorting drops `?pagina=` through the same `resetKeys`
-every filter uses. `docs/DATA-FLOW.md`'s _sort is a link, not a control_ is
+every filter uses. `docs/READ-PATH.md`'s _sort is a link, not a control_ is
 unchanged and still governs admin: it is an argument about **sortable column
 headers in a table**, and a grid has no headers to hang anchors on. The shop's
 five options are a closed enum a shopper picks from a control, not a field ×

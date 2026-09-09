@@ -130,7 +130,7 @@ sweep is a short job worth having.
 
 ### Removal is a field edit, not a confirmed write
 
-`docs/DATA-FLOW.md` listed "an image" among the `remove` writes that gate
+`docs/WRITE-PATH.md` listed "an image" among the `remove` writes that gate
 through `ConfirmProvider`. That table was written before this flow existed, and
 it is corrected here.
 

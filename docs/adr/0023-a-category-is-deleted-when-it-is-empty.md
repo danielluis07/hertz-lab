@@ -55,7 +55,7 @@ that there were some. It counts direct children and refuses those the same way.
 
 **Children are refused, not promoted and not re-parented.** Both alternatives
 mutate the browse tree invisibly, and refusing is what makes *empty* mean one
-thing — the word `docs/DATA-FLOW.md` already used by hand ("a procedure that
+thing — the word `docs/WRITE-PATH.md` already used by hand ("a procedure that
 genuinely deletes a row, such as an empty Category") and the word the refusal,
 that table and `CONTEXT.md` now all lean on.
 

@@ -19,7 +19,7 @@ The frame was never what made them dynamic.
 Deciding whether to add one exposed a second wrong premise, this time in
 `docs/STOREFRONT.md`. The catalogue's filters, sort and pagination live in the
 URL — `busca`, `ordenar`, `preco_min`, `preco_max`, `marca`, `pagina`
-(`docs/DATA-FLOW.md`) — and ADR-0032 makes a shop query `caller` by default,
+(`docs/READ-PATH.md`) — and ADR-0032 makes a shop query `caller` by default,
 because nothing a shopper does *writes* the catalogue. A `caller` read of those
 parameters is a server read of `searchParams`, and
 `03-api-reference/03-file-conventions/page.md` L119 is unambiguous:

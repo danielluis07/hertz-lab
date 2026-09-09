@@ -1,6 +1,6 @@
 # The products admin module
 
-The exemplar. Every rule in `docs/MODULES.md`, `docs/DATA-FLOW.md` and
+The exemplar. Every rule in `docs/MODULES.md`, `docs/READ-PATH.md`, `docs/WRITE-PATH.md` and
 ADR-0008 through ADR-0020 applied to one module, deeply enough that the other
 eight admin modules are execution and not decisions.
 
@@ -95,7 +95,7 @@ A row carries:
 
 **No thumbnail and no price**, and both omissions are deliberate. A price is
 ambiguous under ADR-0001 — *which* Variant's? — which is the same reason
-`docs/DATA-FLOW.md` refuses price as a sort key; a column an Admin cannot sort
+`docs/READ-PATH.md` refuses price as a sort key; a column an Admin cannot sort
 by, showing a range, is a worse surface than no column. A thumbnail costs a
 lateral join per row for decoration on a surface whose users know their own
 catalog.
@@ -105,7 +105,7 @@ catalog.
 and never a syntax error. The sort carries a second term the spec did not name:
 `asc(product.id)` after the chosen column, because uuidv7 ids sort by creation
 and a page boundary needs a stable tie-break. **A list always succeeds**: a `categoryId` that no longer exists
-yields `[]` and an empty state, never a 404 (`docs/DATA-FLOW.md`, "Absence").
+yields `[]` and an empty state, never a 404 (`docs/READ-PATH.md`, "Absence").
 
 ### `byId`
 
@@ -166,7 +166,7 @@ gallery every time someone fixes a typo in alt text.
 
 A row that no longer exists is a `NOT_FOUND`, thrown from the transaction's own
 first read — the one place in this module where a *write* answers absence, and
-the asymmetry `docs/DATA-FLOW.md` names: reads resolve to "absent", writes
+the asymmetry `docs/READ-PATH.md` names: reads resolve to "absent", writes
 resolve to "refused".
 
 Images whose keys leave the array have their S3 objects deleted **after the
@@ -209,7 +209,7 @@ here"). An illegal transition is a `CONFLICT`.
 `docs/MODULES.md`'s domain-verb rule rather than a new decision: the form edits
 what a Product *is*, a transition is what it *does*, it fires from a list row
 where no form exists, and it carries its own toast copy. Neither confirms —
-`docs/DATA-FLOW.md` already has `archive` as reversible-by-filtering. A side
+`docs/WRITE-PATH.md` already has `archive` as reversible-by-filtering. A side
 effect worth having: since `create` always writes `draft`, a new Product cannot
 go live by accident.
 
@@ -340,7 +340,7 @@ module's only status type is the one the constants already declare.
 `admin/filters.ts` holds `productFilters`, the `FilterBar` spec — a function
 of the Brand and Category option sets rather than a constant, because two of its
 four filters are rows the composing route reads per request
-(`docs/DATA-FLOW.md`).
+(`docs/READ-PATH.md`).
 
 ## Routes to surfaces
 

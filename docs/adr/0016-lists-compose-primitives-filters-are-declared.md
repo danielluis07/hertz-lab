@@ -97,7 +97,7 @@ only client code on the page is the filter bar.
 
 The tables stay on the server. Header rows, cells and pagination are HTML,
 sort headers are anchors, and no row data is serialized into the page — which is
-what `docs/DATA-FLOW.md` was already reaching for when it kept sort as a link
+what `docs/READ-PATH.md` was already reaching for when it kept sort as a link
 and pagination JavaScript-free. That property is preserved by construction now
 rather than by care.
 
@@ -151,7 +151,7 @@ that query and hydrates it.
 That is deliberate, and it is ADR-0011's rule reaching a conclusion this ADR did
 not anticipate: a query is prefetched and hydrated **if and only if** a client
 component reads it, so the two ADRs cannot both be satisfied and one had to give.
-The write path decided it. `docs/DATA-FLOW.md` specifies every row action as
+The write path decided it. `docs/WRITE-PATH.md` specifies every row action as
 `invalidateQueries(trpc.products.pathFilter())` and nothing more, and rests that
 on refetching *active* queries — those a mounted component observes. A server
 table has no active query, so publish and archive would each need a

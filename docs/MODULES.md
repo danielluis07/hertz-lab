@@ -308,7 +308,7 @@ free, and it is the same lever the `(shop)` frame is deciding for itself.
 
 **The shop addresses by Slug.** A shopper never holds an id, so the detail read
 is `bySlug`, not `byId`, and it returns `null` for the page to turn into
-`notFound()` — reads resolve absence to "absent" (`docs/DATA-FLOW.md`). Reads
+`notFound()` — reads resolve absence to "absent" (`docs/READ-PATH.md`). Reads
 are `list`, `bySlug`, `options`, `roots`; writes take their domain verb from
 `CONTEXT.md`'s own vocabulary, exactly as admin's do.
 
@@ -363,7 +363,7 @@ Two consequences of that clause, both decided rather than left to a surface:
   would make the catalogue flicker with restocks and break every shared link.
 
 The shop's list input, its envelope and which read path it uses are
-`docs/DATA-FLOW.md`; ADR-0032 and ADR-0033 carry the two that needed recording.
+`docs/READ-PATH.md`; ADR-0032 and ADR-0033 carry the two that needed recording.
 
 ## Promotion
 

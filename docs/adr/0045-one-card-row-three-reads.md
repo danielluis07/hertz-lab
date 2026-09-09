@@ -22,7 +22,7 @@ It does not go far enough for the card, and the gap is easy to miss. **The
 minimum tells the card the price but not the label.** `docs/STOREFRONT.md`
 specifies "a multi-Variant Product shows its lowest Variant price, prefixed _A
 partir de_", and once a row carries only the minimum, a Product with one Variant
-and a Product with five look identical. Nothing in ADR-0033, `DATA-FLOW.md` or
+and a Product with five look identical. Nothing in ADR-0033, `READ-PATH.md` or
 `STOREFRONT.md` says how the card learns which it is holding.
 
 Left unstated, each of the three reads would answer it separately, or two of

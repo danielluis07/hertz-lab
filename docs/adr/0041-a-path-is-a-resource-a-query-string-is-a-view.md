@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-`docs/DATA-FLOW.md` fixes absence for admin in two rules: `null` means "this
+`docs/READ-PATH.md` fixes absence for admin in two rules: `null` means "this
 resource does not exist" and becomes a `notFound()`; `[]` means "nothing
 matched" and renders an empty state. It is emphatic that **a list always
 succeeds** — `/admin/products?categoryId=<gone>` shows an empty list, "a filter
@@ -41,7 +41,7 @@ cannot be absent. The glossary was right and the read path disagreed with it.
 **What distinguishes the two absences is where the thing is addressed, not what
 kind of thing it is.** A path segment names a resource, and a resource that is
 not there is a 404. A query string names a view over a list, and a view that
-selects nothing is an empty state. `DATA-FLOW.md`'s `null`/`[]` rule is the
+selects nothing is an empty state. `READ-PATH.md`'s `null`/`[]` rule is the
 consequence of this, not the statement of it.
 
 Applied:
@@ -76,7 +76,7 @@ a seed problem.
 
 ## Consequences
 
-`docs/DATA-FLOW.md`'s absence section is **narrowed, not superseded**, following
+`docs/READ-PATH.md`'s absence section is **narrowed, not superseded**, following
 the pattern of ADR-0029 and ADR-0034: its two rules stand for admin exactly as
 written, and gain the clause that says which one applies. Admin never needed the
 distinction because it addresses every resource by an `[id]` segment and every

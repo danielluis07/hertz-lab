@@ -42,7 +42,7 @@ client navigation to React `<Activity>`, which preserves component state instead
 of unmounting — with knock-on effects on dialogs, dropdowns and their tests.
 
 The cost falls in the wrong place. It is a **global** switch, and the admin half
-pays it in full for a benefit it does not want: `docs/DATA-FLOW.md` already
+pays it in full for a benefit it does not want: `docs/READ-PATH.md` already
 records that every admin route is dynamic behind `requireAdmin()`, so admin has
 no static/dynamic trade-off to make. The half that would benefit is the shop,
 and the shop is currently 19 stub routes.

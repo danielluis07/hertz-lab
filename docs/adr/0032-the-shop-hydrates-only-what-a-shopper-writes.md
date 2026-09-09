@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-`docs/DATA-FLOW.md` gives one mechanical test for choosing a read path, and it
+`docs/READ-PATH.md` gives one mechanical test for choosing a read path, and it
 turns on a single question: *does a client component call `useSuspenseQuery` on
 it?* Answer yes and the query is `prefetch`ed or `load`ed, dehydrated by
 `<HydrateClient>` and shipped to the browser; answer no and it is a `caller`
@@ -67,7 +67,7 @@ The filter bar stays a client component and this decision does not touch it: it
 side of the boundary. The same holds for sort headers and pagination, which
 ADR-0016 already made anchors.
 
-The mechanical test in `docs/DATA-FLOW.md` is unchanged and still governs. This
+The mechanical test in `docs/READ-PATH.md` is unchanged and still governs. This
 ADR only records what its first column evaluates to on the shop, and why the
 answer differs from admin's without the test differing.
 

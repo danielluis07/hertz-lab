@@ -86,7 +86,7 @@ The payload saved by any one split is small, because nearly every file under
 interactive surface, which only works while the directive sits where the
 interactivity actually is.
 
-`docs/DATA-FLOW.md` applies this to the read path — why the filter bar is the
+`docs/READ-PATH.md` applies this to the read path — why the filter bar is the
 only client component on a list page, and why sort headers are anchors.
 
 ## Formatters

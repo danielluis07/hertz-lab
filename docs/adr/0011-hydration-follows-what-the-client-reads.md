@@ -90,5 +90,5 @@ A second cost: the rule is stated in terms of a call in a *different file* from
 the one you are editing. Deleting the last `useSuspenseQuery` in a client
 component is what makes a page's `prefetch` wrong, and nothing enforces the
 pairing. The failure is benign — a slightly larger payload, never a bug — which
-is also why it will not be noticed. `docs/DATA-FLOW.md` carries the worked
+is also why it will not be noticed. `docs/READ-PATH.md` carries the worked
 example so the pairing is at least visible in one place.

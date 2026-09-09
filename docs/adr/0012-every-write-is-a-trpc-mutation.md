@@ -55,7 +55,7 @@ The consequences that make this concrete:
   `schemas.ts` and submits through a module-owned mutation hook.
 - `refresh()` from `next/cache` is unreachable in this codebase and should never
   appear in it. Where the RSC tree must re-render, the client calls
-  `router.refresh()` from `useRouter` — see `docs/DATA-FLOW.md`.
+  `router.refresh()` from `useRouter` — see `docs/WRITE-PATH.md`.
 - **S3 upload goes presigned-URL-from-a-procedure.** An `adminProcedure` mints
   the URL, the browser puts the file to S3 directly, and the resulting key
   travels through an ordinary mutation. `lib/s3.ts` stays behind the same guard
@@ -85,7 +85,7 @@ are tolerated deliberately rather than swept — this repo has no scheduled runn
 to sweep with.
 
 **Refined by the products exemplar.** The "after the write" rule in
-`docs/DATA-FLOW.md` originally read *add `router.refresh()` only if the page
+`docs/WRITE-PATH.md` originally read *add `router.refresh()` only if the page
 reads through `caller`*. That is too narrow: `load` also renders its value into
 the RSC payload, which `invalidateQueries` cannot reach. The condition is
 whether **a server component rendered the value** — `caller` or `load` — and

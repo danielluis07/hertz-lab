@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-`docs/DATA-FLOW.md` bans `loading.tsx` in admin and declines to decide the shop.
+`docs/READ-PATH.md` bans `loading.tsx` in admin and declines to decide the shop.
 The ban's reason does not reach the shop: a `loading.tsx` "would throw away the
 instantly-rendered shell — nav, heading, filter bar — that per-section Suspense
 exists to deliver", and ADR-0032 makes a shop read a `caller` call, so **a shop
@@ -58,7 +58,7 @@ Admin is the first branch — it prefetches, so it has a shell that renders in o
 round trip, and `loading.tsx` would throw that away. The catalogue is the second
 — ADR-0032 makes it `caller`-only, so nothing can render until the data lands
 and there is no shell to lose. Same rule, opposite answer, which is why
-`DATA-FLOW.md` needed no correction, only a sibling.
+`READ-PATH.md` needed no correction, only a sibling.
 
 The rule's inputs are ADR-0035's route table and ADR-0032's hydration test, so
 the file list is derived, never maintained. Where both are already settled:
@@ -96,7 +96,7 @@ candidates and neither is settled; both are open questions elsewhere, and the
 constraint this ADR hands them is in Consequences.
 
 **No per-section error boundary anywhere on the shop, and so no `catchError`
-yet.** `DATA-FLOW.md`'s bar is that partial failure leaves the rest of the page
+yet.** `READ-PATH.md`'s bar is that partial failure leaves the rest of the page
 usable. A failed gallery or buy panel *is* a failed page — the shopper cannot
 buy — so the group boundary is right. Related Products was the one candidate and
 does not clear the bar: it is below the fold, so deferring it lets the scroll
@@ -110,7 +110,7 @@ archived Product), `/produtos/[...categoria]` (ADR-0041) and
 `/minha-conta/pedidos/[id]` (another shopper's Order). A group-level fallback
 underneath those would be unreachable code.
 
-**Skeletons.** `DATA-FLOW.md` puts a skeleton in the module beside the component
+**Skeletons.** `READ-PATH.md` puts a skeleton in the module beside the component
 it stands in for, because it knows that component's shape. That rule covers
 `/carrinho` unchanged — its boundary stands for one component, which owns its
 skeleton. It does not cover a `loading.tsx`, whose fallback is **page**-shaped,
