@@ -210,6 +210,22 @@ page already provides.
 a second cart UI to build and keep in sync for a store that has not shipped its
 first. `/carrinho` has to exist and be good regardless.
 
+**The frame resolves the visitor on the client (ADR-0034).**
+`app/(shop)/layout.tsx` never reads the session, because a Request-time read
+there makes every `(shop)` route dynamic and there is no static-shell middle
+ground at `cacheComponents: false` (ADR-0031). So: the cart icon-link is static
+markup for everyone; its badge is an absolutely-positioned element that renders
+nothing until the count resolves and is non-zero, never `0` and never a
+skeleton; the badge reads `trpc.cart.get` with `useQuery` and `select`, gated on
+the session, so a logged-out visitor fires no cart request at all; and the
+account affordance is a client leaf on `authClient.useSession()` swapping
+`Entrar` for a name-and-`Sair` menu in a fixed-width slot. The standing rule is
+that **nothing inside a cached shop route may vary per visitor on the server.**
+
+**Who mounts the frame.** `(shop)` and `(account)` — `app/(account)/layout.tsx`
+imports `components/shop/` directly and takes the header *and* the footer, since
+`/minha-conta` is a storefront destination. `(auth)` does not.
+
 **Footer** — three columns on desktop, stacked on mobile: **Loja** (root
 Categories), **Institucional** (the five pages), **Contato** (email, and the one
 line about the store). Wordmark and copyright beneath a hairline rule.

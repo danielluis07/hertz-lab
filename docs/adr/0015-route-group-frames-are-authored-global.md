@@ -76,6 +76,14 @@ The two instances are **`components/admin/`** and **`components/shop/`**.
 imported by its own route group's layout and by nothing else; that single-owner
 property is what keeps it out of the dependency graph the modules form.
 
+> **Narrowed by ADR-0034.** A frame folder's owners are route group layouts and
+> it may have **more than one**: `app/(account)/layout.tsx` imports
+> `components/shop/`, because `/minha-conta` is a storefront destination and
+> takes the header and footer. What keeps a frame out of the module dependency
+> graph is that every importer is a route group layout, not that there is
+> exactly one. `(auth)` declines the frame, which is what shows this is a choice
+> each group makes rather than something inherited.
+
 Concretely, `components/admin/` holds three *things* — the nav list, the
 sidebar, the header — in five files, and is expected to stay five:
 
