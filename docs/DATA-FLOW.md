@@ -105,6 +105,20 @@ needs a `fetch` or an `unstable_cache` call and this repo's reads are Drizzle
 through a procedure (ADR-0010). There is no time-based `revalidate` floor, so
 an Admin write that changes a shop route owes it a `revalidatePath` call.
 
+**ADR-0035 says which routes that is, and the answer is smaller than it
+sounds.** The catalogue reads its filters, sort and pagination from
+`searchParams`, which is a Request-time API, so `/produtos` and
+`/produtos/[...categoria]` are dynamic and hold no cache entry to invalidate.
+`/produto/[slug]` prerenders through a `generateStaticParams` that returns an
+empty array — nothing at build, every page cached after one visit — and it stays
+static only while it reads no `searchParams`, no `cookies()` and **no
+`protectedProcedure`**, which reads headers where `baseProcedure` does not.
+
+So the whole invalidating surface is `/` and `/produto/[slug]`. **ADR-0036**
+holds the table, derived from one rule: the obligation follows what a write
+changes on the shop, never which module the write lives in — which is why Review
+moderation, in the reviews module, owes `/produto/<slug>` a call.
+
 ## Query keys and server/client parity
 
 A tRPC query key is `[path[], { input, type }]`, hashed with `JSON.stringify`.
