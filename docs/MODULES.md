@@ -253,6 +253,63 @@ the query. The consequence to accept is that `server/` exports no rules, so a
 rule needed by both a procedure and a form lives at the root and both import it
 from there.
 
+## The shop half
+
+Everything above is the module's anatomy and applies to both audiences. This
+section is what the **shop** half of a two-audience module fixes, decided once
+so that no route contract settles it by accident.
+
+**The router key mirrors admin.** `trpc.products.shop.list` against
+`trpc.products.admin.list`, for the seven modules that have both audiences. The
+six single-audience modules stay flat — `trpc.cart.get`, never
+`trpc.cart.shop.get` — the same six that get no audience folder.
+
+**The shop's `options` is its own procedure.** A catalogue filter needs Brand
+rows, and `brands.admin.options` runs on `adminProcedure`, so a shop route
+calling it gets `FORBIDDEN`. `brands.shop.options` and `categories.shop.tree`
+exist in their own right. Where the two audiences ask the same question of the
+database, that is ADR-0010's trigger reaching a second caller, and the query
+moves to the module's `server/queries.ts` — on the second caller, not in
+anticipation of one.
+
+**Which base procedure.** The vocabulary in `trpc/init.ts` is still complete;
+the shop adds nothing to it. `baseProcedure` for everything in the catalogue —
+`products.shop.*`, `brands.shop.*`, `categories.shop.*`, `reviews.shop.list`.
+`protectedProcedure` for `cart`, `wishlist`, `checkout`, `orders.shop.*` and
+`customers.shop.*`; `CONTEXT.md` rules out guest checkout, so there is no
+anonymous-Cart case to serve.
+
+The consequence is worth stating where it can be read rather than discovered:
+**`protectedProcedure` calls `getCurrentSession()`, which reads `headers()`, so
+a `protectedProcedure` read makes its route dynamic.** Choosing one is never
+free, and it is the same lever the `(shop)` frame is deciding for itself.
+
+**The shop addresses by Slug.** A shopper never holds an id, so the detail read
+is `bySlug`, not `byId`, and it returns `null` for the page to turn into
+`notFound()` — reads resolve absence to "absent" (`docs/DATA-FLOW.md`). Reads
+are `list`, `bySlug`, `options`, `tree`; writes take their domain verb from
+`CONTEXT.md`'s own vocabulary, exactly as admin's do.
+
+**Visibility is one named clause.** Only `active` Products are ever visible to a
+shopper. `modules/products/server/visibility.ts` exports
+`visibleProduct = eq(product.status, "active")` and every shop query `and()`s it
+in — one place to grep, and no view, no middleware and no structural machinery
+for what is a `where` clause. It is a clause and not a pure rule, which is why
+it lives in `server/` and not at the module root; ADR-0030 is what lets `cart`,
+`wishlist` and `checkout` import it.
+
+Two consequences of that clause, both decided rather than left to a surface:
+
+- **An archived Product is a 404.** `bySlug` returns `null` and the page calls
+  `notFound()`. It is kept because Orders refer to it (`CONTEXT.md`), which is a
+  reason to keep the row, not a reason to keep the page.
+- **An out-of-stock Product stays visible.** Stock is a Variant fact, and a
+  Product with one sold-out Variant is still worth reading about. Hiding it
+  would make the catalogue flicker with restocks and break every shared link.
+
+The shop's list input, its envelope and which read path it uses are
+`docs/DATA-FLOW.md`; ADR-0032 and ADR-0033 carry the two that needed recording.
+
 ## Promotion
 
 ADR-0007's tie-breaker — **promote on the second caller, never on the first** —

@@ -86,8 +86,14 @@ reason does not hold in admin: ADR-0006 puts `requireAdmin()` in every admin
 already dynamic**. Admin has no static/dynamic trade-off to make.
 
 On the shop side that trade-off is real — a product page with no session read
-can be static — but `caller` still earns its place there for the reason above,
-not for that one. Shop surfaces are otherwise outside what this file specifies.
+can be static — and there `caller` earns its place for **both** reasons at once.
+ADR-0032 settles which path a shop read uses, and the short form is that the
+answer inverts: **on the Storefront a query is hydrated if and only if a
+shopper's own write can change it.** Nothing a shopper does invalidates the
+catalogue, so the grid, the product page and the institucional pages are
+`caller` reads that ship no dehydrated cache; the Cart, the Wishlist control and
+the reviews island are the exceptions that do. The test above is unchanged —
+only what its first column evaluates to.
 
 **ADR-0031 settles how the shop caches**, and it constrains the read path
 enough to belong here. `cacheComponents` is off, so `use cache`, `cacheLife`
@@ -183,6 +189,11 @@ Price and stock are not sortable or filterable on a Product list at all: they
 live on the Variant (ADR-0001), so sorting a Product by price first requires
 deciding *which* Variant's price. That is a real decision and not this one.
 
+**It is now the shop's, and the shop made it** — ADR-0033 fixes a Product's
+shop-facing price as `min(variant.price_amount)`. This paragraph is unchanged
+for admin: an Admin's question about price is about a *Variant*, which is a row
+in the form and not a column in the catalog.
+
 ### Sort
 
 **Two parameters, `sortBy` and `sortOrder`, not a combined `?sort=name.asc`.**
@@ -213,6 +224,76 @@ The shop side is where a real mapping will exist, since ADR-0005 gives it
 `busca` and `pagina`. Admin's identity is exactly why no mapping exists here,
 and why `useQueryParam` and `buildPageHref` take the key as an argument rather
 than assuming either vocabulary.
+
+### The shop's list input
+
+That mapping now exists, and this is its shape. The shop cannot have admin's
+identity between schema key and parameter name: ADR-0005 makes the URL
+Portuguese and `AGENTS.md` makes every identifier English, so one of the two has
+to give. **The schema keys stay English and the map is explicit.**
+
+`modules/products/shop/schemas.ts` holds `catalogueParamsSchema` with English
+keys, a `CATALOGUE_PARAMS: Record<keyof CatalogueInput, string>` beside it
+holding the Portuguese strings, and `parseCatalogueParams` renaming through the
+map before it parses. That constant is what `PaginationNav`'s `paramKey`,
+`buildSortHref` and every `FilterSpec`'s `key` read — which is precisely why all
+three already take the key as an argument rather than assuming a vocabulary.
+
+It is a **second schema, not a reuse** of `productListParamsSchema`. "Paginated,
+and includes `draft` and `archived`" is a sentence only the admin can say, and
+the shop's price range has no admin counterpart at all. Both live in their
+audience's folder for the reason the section above gives.
+
+**`?busca=`, not `?q=`.** An older draft of `docs/STOREFRONT.md` had the search
+parameter as `q`, alone among four Portuguese siblings; ADR-0005's own argument
+against a storefront that looks translated applies to a parameter as much as to
+a segment.
+
+#### One `ordenar`, where admin has two
+
+Admin splits `sortBy` and `sortOrder` so that a garbage direction costs only the
+direction. **The shop takes one parameter**, because its five options are not a
+field × direction matrix: *relevância* has no direction and is offered only when
+`busca` is present, and *menor preço* / *maior preço* are one field twice. Split,
+a shopper could construct `?ordenar=relevancia&direcao=desc`, which means
+nothing.
+
+So `?ordenar=` is a closed enum in Portuguese — `relevancia`, `recentes`,
+`menor-preco`, `maior-preco`, `avaliados` — and `CATALOGUE_SORTS` maps each to an
+English `{ sortBy, sortOrder }` pair, through the same seam the keys use. The
+schema sees `busca` and `ordenar` together, so it is also what falls `relevancia`
+back to the default when there is no search to be relevant to.
+
+The divergence is deliberate: admin's two parameters serve an internal surface
+where a hand-edited URL should degrade field by field, and the shop's one
+parameter serves five choices a shopper picks from a control.
+
+#### Price is an aggregate
+
+`?preco_min` and `?preco_max` are **reais** in the URL, converted to cents at the
+schema seam, because `Money` is cents (`CONTEXT.md`) and no shopper types cents.
+They filter on `min(variant.price_amount)` — ADR-0033 — so they are a `HAVING`
+clause over a grouped query rather than a `WHERE` over a column, and that same
+minimum is what *menor preço* sorts and what the card prints.
+
+### The envelope
+
+There is no shop-wide envelope, and inventing one would add a rule where the
+existing one already answers. **The envelope follows the surface**: a list with a
+`PaginationNav` returns `{ items, total }`, and a list ADR-0025 leaves
+unpaginated returns a bare array — exactly the rule `categories.admin.list`
+already follows.
+
+Applied: `products.shop.list` paginates, so it carries `total`, counted over the
+grouped query as a subquery because ADR-0033's `HAVING` makes the admin's flat
+`count()` unavailable. `brands.shop.options` and `categories.shop.tree` are
+bounded, so they are bare arrays.
+
+`reviews.shop.list` is the one to look at twice: ADR-0004 denormalises
+`product.ratingCount`, and the product page has read it before it ever asks for
+reviews — so a `total` there would be a second count of rows the page can already
+count. That is an observation for the surface that specifies the reviews island,
+not a rule fixed here.
 
 ## What a list surface is made of
 
