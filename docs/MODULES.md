@@ -122,6 +122,17 @@ resolves Variant ids into renderable lines — Product name, price, and the Cove
 which `CONTEXT.md` makes a position rather than a flag — and `cart`, `wishlist`
 and `checkout` all call it rather than each rewriting that rule.
 
+**That gate is about reads. Writes are governed by ownership instead**
+(ADR-0038): a write to a table belongs to the module that owns it, whatever the
+caller count — which is what `rating.ts` did all along, with one caller. The
+checkout transaction is the worked case: it writes through
+`customers/server/profile.ts`, `products/server/stock.ts`,
+`orders/server/place.ts`, `coupons/server/redeem.ts`,
+`payments/server/create.ts` and `cart/server/empty.ts`, each called exactly
+once, while querying `shipping_method`, `address` and `cart_item` inline
+because a *read* with one caller stays in its caller (ADR-0010). Both halves of
+the rule live in one function, deliberately.
+
 Which way any of this may point is ADR-0009 as **narrowed by ADR-0029**: a
 foreign key is a dependency only where the holding module reads the row, so
 ADR-0003 snapshot keys and keys to the global `user` table create no arrow.
@@ -231,7 +242,7 @@ for a module-owned concern. Anything cross-cutting belongs in `trpc/init.ts`.
 
 `list`, `byId`, `create`, `update` are the defaults, **but where the domain has
 its own verb, the domain verb wins.** `products.admin.archive`,
-`reviews.admin.moderate`, `orders.admin.fulfil` — not `update` carrying a status
+`reviews.admin.moderate`, `orders.admin.fulfil`, `checkout.place` — not `update` carrying a status
 field. A Product's `archived` status and a Review's moderation are facts in
 `CONTEXT.md`, and a procedure named after the domain says which fact it changes.
 
