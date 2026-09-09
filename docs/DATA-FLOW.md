@@ -89,6 +89,16 @@ On the shop side that trade-off is real — a product page with no session read
 can be static — but `caller` still earns its place there for the reason above,
 not for that one. Shop surfaces are otherwise outside what this file specifies.
 
+**ADR-0031 settles how the shop caches**, and it constrains the read path
+enough to belong here. `cacheComponents` is off, so `use cache`, `cacheLife`
+and `cacheTag` do not exist in this repo and a Request-time read dynamises its
+whole route — `<Suspense>` buys streaming, never a static shell. The shop
+therefore caches **rendered routes** with ISR, never queries. `unstable_cache`
+is **banned**; `revalidatePath` is the only invalidation lever, because a tag
+needs a `fetch` or an `unstable_cache` call and this repo's reads are Drizzle
+through a procedure (ADR-0010). There is no time-based `revalidate` floor, so
+an Admin write that changes a shop route owes it a `revalidatePath` call.
+
 ## Query keys and server/client parity
 
 A tRPC query key is `[path[], { input, type }]`, hashed with `JSON.stringify`.
