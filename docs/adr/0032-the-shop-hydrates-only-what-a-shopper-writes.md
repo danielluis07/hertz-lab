@@ -71,6 +71,15 @@ The mechanical test in `docs/DATA-FLOW.md` is unchanged and still governs. This
 ADR only records what its first column evaluates to on the shop, and why the
 answer differs from admin's without the test differing.
 
+> **Narrowed by ADR-0034: hydration is a property of a page, never of the
+> frame.** The header cart badge named above cannot be hydrated, because
+> hydrating it would mean a `prefetch` in `app/(shop)/layout.tsx` and a
+> Request-time read there makes the whole `(shop)` group dynamic. The rule in
+> this ADR is untouched — the Cart is still the hydrated query — but it is
+> hydrated **on `/carrinho`**, and the badge reads the same key cold with
+> `useQuery` everywhere else. A frame component reading a hydrated query reads
+> it cold except on the one page that prefetches it.
+
 ## Consequences
 
 The catalogue ships less JavaScript and fewer bytes than the admin list that
