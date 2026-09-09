@@ -312,6 +312,39 @@ is `bySlug`, not `byId`, and it returns `null` for the page to turn into
 are `list`, `bySlug`, `options`, `roots`; writes take their domain verb from
 `CONTEXT.md`'s own vocabulary, exactly as admin's do.
 
+**`categories.shop.bySlug` returns the Category with its parent's slug and its
+children** — `{ id, name, slug, description, parent: { slug } | null, children:
+{ id, name, slug, imageS3Key }[] }`. One read, four jobs: the heading and
+description, ADR-0043's chain validation, the child strip, and the subtree ids
+`products.shop.list` filters on. Anything narrower makes the category page issue
+a second read of a row it already had.
+
+**A shop `options` read offers nothing that cannot return a result.**
+`brands.shop.options` is every Brand **with at least one visible Product** — a
+`WHERE EXISTS` semi-join served by `product_active_idx` — where
+`brands.admin.options` is every Brand full stop. A Brand whose Products are all
+`draft` or `archived` is not *empty* by `CONTEXT.md`'s definition, so it is never
+deleted, and left unfiltered it would sit in the catalogue's Marca filter forever
+producing an empty grid. This is the one case where an empty result is the
+**control's** fault rather than the shopper's, and ADR-0041's "clear the filters"
+is no help to someone who filtered correctly.
+
+It is **not** scoped to the Category being browsed: `docs/STOREFRONT.md` asks for
+the whole Brand list, scoping would make the options churn as a shopper walks the
+tree, and a Brand with no headphones returning nothing on a headphones page is a
+narrowing a shopper reads as an answer — where a globally empty Brand is a data
+artifact they cannot interpret.
+
+**A shop read that returns names sorts them with `localeCompare(…, "pt-BR")` in
+the procedure**, never `ORDER BY name`. ADR-0042 established this for
+`categories.shop.roots` because the `C` collation puts "Áudio" after "Zumbidos";
+`brands.shop.options` inherits it for the same reason. `brands.admin.options`
+still sorts in the database and is **deliberately left alone** — `(admin)` is a
+different audience (ADR-0027) and out of scope for the Storefront work. Worth
+naming, though: this is the **second** surface where the same collation defect
+appeared and was fixed on one side only. A third occurrence is the signal that it
+wants a shared helper rather than a third patch.
+
 **Visibility is one named clause.** Only `active` Products are ever visible to a
 shopper. `modules/products/server/visibility.ts` exports
 `visibleProduct = eq(product.status, "active")` and every shop query `and()`s it

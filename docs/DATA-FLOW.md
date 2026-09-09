@@ -246,9 +246,9 @@ identity between schema key and parameter name: ADR-0005 makes the URL
 Portuguese and `AGENTS.md` makes every identifier English, so one of the two has
 to give. **The schema keys stay English and the map is explicit.**
 
-`modules/products/shop/schemas.ts` holds `catalogueParamsSchema` with English
-keys, a `CATALOGUE_PARAMS: Record<keyof CatalogueInput, string>` beside it
-holding the Portuguese strings, and `parseCatalogueParams` renaming through the
+`modules/products/shop/schemas.ts` holds `catalogParamsSchema` with English
+keys, a `CATALOG_PARAMS: Record<keyof CatalogInput, string>` beside it
+holding the Portuguese strings, and `parseCatalogParams` renaming through the
 map before it parses. That constant is what `PaginationNav`'s `paramKey`,
 `buildSortHref` and every `FilterSpec`'s `key` read — which is precisely why all
 three already take the key as an argument rather than assuming a vocabulary.
@@ -263,6 +263,51 @@ parameter as `q`, alone among four Portuguese siblings; ADR-0005's own argument
 against a storefront that looks translated applies to a parameter as much as to
 a segment.
 
+**`catalog`, not `catalogue`, in every identifier.** These names were first
+recorded here as `catalogueParamsSchema` / `CATALOGUE_PARAMS` /
+`CATALOGUE_SORTS`, which put a second spelling of one noun into a codebase whose
+glossary heading is **Catalog** and whose files are `db/schema/catalog.ts` and
+`components/catalog-image.tsx`. `CONTEXT.md` opens by promising that every term
+means exactly one thing "in code, in issues, and in conversation", and two
+spellings is that promise broken. The identifiers were corrected before any of
+them existed as code, which is why this cost three lines rather than a schema
+rename. **Prose is unaffected** — "the catalogue" stays ordinary English
+throughout these documents; the rule binds identifiers and glossary terms, which
+is where the promise actually bites.
+
+#### The default sort is a function of `busca`
+
+`relevancia` is the default when `busca` is present, and `recentes` otherwise. It
+is the same `.transform()` that falls `relevancia` back when there is no search,
+run in the other direction, and it uses admin's existing precedent: resolving the
+value inside the schema makes it a property of the parsed object, so the client
+cannot compute a divergent query key because it never computes one. A text search
+ordered by recency is a worse search, and `plainto_tsquery('portuguese', …)` over
+`product_search_idx` — what `products.admin.list` already issues — computes the
+match regardless, so `ts_rank` is the cheap thing to order by.
+
+The visible edge: sorting by _relevância_ and then clearing the search leaves
+`ordenar=relevancia` in the URL, the schema resolves it to `recentes`, and the
+control reads the resolved value. No extra rule, and the query key cannot fork.
+
+#### A contradictory range is a view, not an error
+
+`?preco_min=500&preco_max=100` gets **no special handling** — no cross-field
+`.refine()`, no swap. ADR-0014 is per-field `.catch()` for a reason, and a range
+that selects nothing is a view that selects nothing, which ADR-0041 already
+answers with an empty state. Swapping them would guess at intent; rejecting them
+would 400 a URL a shopper typed.
+
+#### `CATALOG_PER_PAGE` is 24, and it is not `PRODUCTS_PER_PAGE`
+
+24 is divisible by 2, 3 and 4, so the grid has no ragged final row at any width;
+`PRODUCTS_PER_PAGE` is 20 because that is what the admin table is built for. The
+argument above — a page size is a **layout** decision — applies twice here, to
+two layouts, and lands on two numbers. Sharing one constant would couple an admin
+table's row count to a shop grid's column count, so that changing the table would
+silently reflow the storefront. It stays a constant and never a parameter, for
+admin's unchanged reason.
+
 #### One `ordenar`, where admin has two
 
 Admin splits `sortBy` and `sortOrder` so that a garbage direction costs only the
@@ -273,7 +318,7 @@ a shopper could construct `?ordenar=relevancia&direcao=desc`, which means
 nothing.
 
 So `?ordenar=` is a closed enum in Portuguese — `relevancia`, `recentes`,
-`menor-preco`, `maior-preco`, `avaliados` — and `CATALOGUE_SORTS` maps each to an
+`menor-preco`, `maior-preco`, `avaliados` — and `CATALOG_SORTS` maps each to an
 English `{ sortBy, sortOrder }` pair, through the same seam the keys use. The
 schema sees `busca` and `ordenar` together, so it is also what falls `relevancia`
 back to the default when there is no search to be relevant to.
@@ -373,6 +418,20 @@ not re-suspend the table**.
 
 ### One filter bar owns every write
 
+> **Narrowed by ADR-0044: one _control set_ owns every write.** The sentence
+> below was true of admin because admin has one arrangement. The shop needs a
+> different one — a mobile `Filtrar` Sheet with **Ordenar outside it**, and a
+> price range writing two parameters in one navigation — so the file splits:
+> `FilterSearch`, `FilterSelect` and a new `FilterRange` keep every rule in this
+> section, and each audience owns a thin component that arranges them. The rules
+> are what must not be duplicated, because each fails silently; layout is not
+> part of the declaration, which is the same test ADR-0016 applies to a column
+> spec. Two consequences for callers: `buildFilterHref` takes
+> `values: Record<string, string | null>` rather than one `key`/`value` pair, and
+> **on the shop, sort is a filter** — `?ordenar=` is written through
+> `buildFilterHref`, so *Sort is a link, not a control* below keeps admin and
+> gains no shop caller.
+
 **No component calls `useQueryParam` or `router.replace` directly.** One shared
 component — `components/filter-bar.tsx` — owns every filter write on every admin
 list, and the module supplies only a **spec**:
@@ -453,6 +512,15 @@ These are one pattern — write the URL in a transition — with debounce as the
 special case that needs local state.
 
 ### Sort is a link, not a control
+
+> **This is an admin rule, and ADR-0044 says why.** The argument below is about
+> a **sortable column header in a table**, and the shop's grid has none to hang
+> an anchor on. The catalogue's five `?ordenar=` options are a closed enum a
+> shopper picks from a control, not a field × direction matrix — so the shop
+> writes `ordenar` through `buildFilterHref` like any other filter, drops
+> `?pagina=` through the same `resetKeys`, and `buildSortHref` gains **no shop
+> caller at all**. Reaching for it there to "restore consistency" would be
+> restoring the wrong one.
 
 `lib/utils/pagination.ts` opens by saying pagination is a navigation, not a
 state change, and `PaginationNav` ships no JavaScript. **A sortable column
