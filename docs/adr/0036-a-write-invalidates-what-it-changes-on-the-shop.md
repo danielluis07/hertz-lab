@@ -49,7 +49,7 @@ Two kinds of entry, and the difference is deliberate:
 | `brands.admin.update` (rename) | `/`, **`/produto/[slug]`, `'page'`** |
 | `categories.admin.*` | `/` |
 | Review moderation (approve / reject) | `/produto/<slug>` |
-| The checkout write (#102) | `/produto/<slug>` for each Product in the Order |
+| The checkout write (ADR-0039) | `/produto/<slug>`, once per **distinct** Product in the Order |
 
 **Literal paths are the default. The pattern is for genuine fan-out only** — a
 Brand rename changes the meta line on every product page of that Brand, and a
