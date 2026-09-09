@@ -543,6 +543,34 @@ edit form's selects need them as much as the list's filter bar does), so the
 shell is available in one round trip and only the data sections need to show
 anything.
 
+### Which is a case of one rule, not a ban (ADR-0040)
+
+What bans the file here is not "no `loading.tsx`" — it is *do not throw away a
+shell you have*. Stated generally:
+
+> A dynamic segment shows a fallback while it waits. It uses **`<Suspense>`** if
+> anything on it is prefetched, and **`loading.tsx`** if the page awaits
+> everything. A static segment uses neither.
+
+Admin is the first branch on every route, which is why it has none of these
+files. The shop lands on both: ADR-0032 makes a shop read a `caller` call by
+default, so the catalogue awaits everything and takes `loading.tsx`, while
+`/carrinho` prefetches the Cart and takes a `<Suspense>` for admin's own reason.
+`(account)` is mixed and resolves per segment.
+
+The second branch is not free-standing preference — without Cache Components a
+static route is prefetched whole, while **a dynamic route is not prefetched at
+all** unless it has a `loading.js` boundary. So the file is a gain on a dynamic
+`caller` route and a regression on a static one, which is why it never appears
+above a static segment.
+
+Two consequences the shop carries and admin does not. A `<Suspense>` **requires
+a `prefetch` above it** — a boundary around already-awaited data buys nothing —
+so on the shop it appears only where ADR-0032 hydrates. And a `loading.tsx`
+above a `notFound()` makes it a **soft 404**, because the fallback starts the
+stream before the call is reached; ADR-0040 accepts that on the catalogue and
+keeps `/produto/[slug]` static so its 404 stays real.
+
 ### Skeletons
 
 A skeleton belongs to the component it stands in for, in that component's
@@ -584,6 +612,22 @@ clear the filter, which an empty state invites and a 404 does not.
 
 The asymmetry with the write path is deliberate: **reads resolve to "absent",
 writes resolve to "refused"**. Mutations keep real `TRPCError` codes.
+
+**What decides which rule applies is where the thing is addressed** (ADR-0041).
+A **path** segment names a resource, and a missing resource is a 404. A **query
+string** names a view over a list, and a view selecting nothing is an empty
+state. Admin never had to say this because it addresses every resource by `[id]`
+and every view by a query parameter, so the two lined up; the shop's catalogue
+addresses a Category in the path and its filters in the query string, and must
+produce both absences in one render — `/produtos/nao-existe` is a 404,
+`/produtos/audio?marca=<gone>` is an empty catalogue.
+
+The same clause resolves a trap on the shop's own read path. `cart.user_id` is
+`not null unique` and there is no guest Cart (ADR-0034), so a shopper who has
+added nothing has no `cart` row — and `null` read literally would 404
+`/carrinho` for every new account. **`cart.get` therefore never returns `null`**;
+it returns an empty Cart without creating the row. `/carrinho` addresses the
+shopper, not a Cart, and `CONTEXT.md` already said a Cart is permanent.
 
 ## The query client
 

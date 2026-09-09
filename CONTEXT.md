@@ -93,7 +93,8 @@ percentage is the one exception to "a number is cents": a percentage is
 
 **Cart** — the single, permanent collection of Variants a User intends to buy.
 One Cart per User; it is emptied, never deleted. A Cart reflects *current*
-prices at all times.
+prices at all times. It is a property of the User, not a thing a User can
+address: a User who has added nothing has an **empty** Cart, never no Cart.
 
 **Order** — a purchase that has been placed. An Order is immutable history:
 what it records stays true no matter what later changes in the Catalog.

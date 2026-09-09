@@ -246,6 +246,53 @@ something behind it.
 
 Nothing linked to these five pages before the footer existed.
 
+## Boundaries and absence
+
+Derivable rather than listed. **A dynamic segment shows a fallback while it
+waits — `<Suspense>` if anything on it is prefetched, `loading.tsx` if the page
+awaits everything; a static segment neither** (ADR-0040). And **a path is a
+resource while a query string is a view** (ADR-0041).
+
+| Route | Rendering | Waiting UI | Can 404 | Empty state |
+| --- | --- | --- | --- | --- |
+| `/` | static | — | — | sections hide when empty |
+| `/produtos` | dynamic | `produtos/loading.tsx` | — | clears the filters |
+| `/produtos/[...categoria]` | dynamic | ↑ same file | bad Category (soft) | clears the filters |
+| `/produto/[slug]` | static | — | archived / unknown (**hard**) | related hides when empty |
+| institucional ×5 | static | — | — | — |
+| `/carrinho` | dynamic | `<Suspense>` (Cart) | never | → `/produtos` |
+| `/checkout` | dynamic | its own decision | never | → `/produtos` |
+| `(auth)` ×2 | static | — | — | — |
+| `(account)` ×6 | dynamic | per segment | someone else's Order | → `/produtos` |
+
+`(account)` is uniformly dynamic but **not** uniformly `caller` — `/perfil`,
+`/enderecos` and `/favoritos` are surfaces a shopper writes, so ADR-0032
+hydrates them and they take `<Suspense>`, while the order list and `[id]` take
+`loading.tsx`. Each account route's own issue settles it; there is no
+group-level file.
+
+`error.tsx` is **per route group** — `(shop)`, `(account)`, `(admin)`, plus the
+root. `(auth)` authors none: it has no data read to fail. `not-found.tsx` is
+**per segment**, only on the three that can call `notFound()`, so a group-level
+one would be unreachable.
+
+**No per-section error boundary anywhere on the shop, and no `catchError`.** A
+failed gallery or buy panel *is* a failed page — the shopper cannot buy — so the
+group boundary is right. Related Products was the only candidate and does not
+clear the bar: it is below the fold, so deferring it lets the scroll outrun the
+stream. The Cart badge and the account affordance are client islands owning
+their own pending UI, outside this entirely.
+
+**The spec names an empty state's action; whoever builds the surface writes the
+words.** A filtered catalogue clears its filters, a search echoes its query
+back, and an empty personal list — Cart, Wishlist, orders — points at
+`/produtos`. An unfiltered catalogue with nothing in it is not a state to
+design.
+
+`/carrinho` never 404s, for a reason worth keeping: a Cart is a property of the
+shopper, not a thing a shopper addresses, so a brand-new account sees an empty
+Cart and not a missing page.
+
 ## What this file does not decide
 
 The look. Type placement and hierarchy inside a block, spacing within
