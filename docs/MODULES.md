@@ -112,8 +112,20 @@ names the leaf file and not the import that dragged it in.
 (ADR-0020): *no file outside a `server/` folder may import one.* A server file
 may import another module's server file where the foreign key points that way —
 `modules/reviews/server/` reaching `modules/products/server/rating.ts` is the
-one instance today, and it exists because ADR-0004 requires the rating
+built instance, and it exists because ADR-0004 requires the rating
 recalculation to be atomic with the Review moderation that triggers it.
+
+It is no longer the only *kind*. ADR-0030 lets a server half export a shared
+**read** on the same terms, gated on a second **module** needing it and on the
+query carrying a rule its owner owns: `modules/products/server/lines.ts`
+resolves Variant ids into renderable lines — Product name, price, and the Cover,
+which `CONTEXT.md` makes a position rather than a flag — and `cart`, `wishlist`
+and `checkout` all call it rather than each rewriting that rule.
+
+Which way any of this may point is ADR-0009 as **narrowed by ADR-0029**: a
+foreign key is a dependency only where the holding module reads the row, so
+ADR-0003 snapshot keys and keys to the global `user` table create no arrow.
+ADR-0029 carries the full thirteen-module graph.
 
 The trap the narrowing hides: **a module's `admin/` and `shop/` folders are not
 `server/`.** They render in the browser, so they may not import a `server/`

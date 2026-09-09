@@ -97,3 +97,11 @@ ADR-0004's "a recalculation routine that can rebuild both columns for a Product
 from scratch should exist from the start" is satisfied by this file and nowhere
 else. It is written to take a transaction, so a future repair script calls the
 same function.
+
+**Generalised by ADR-0030.** The argument above is entirely about atomicity,
+because the rating was the only case. `cart`, `wishlist` and `checkout` then
+needed the same import to resolve a Variant into a renderable line — where the
+Cover is a *position, never a flag* — with no transaction at stake for two of
+the three. ADR-0030 restates the permission as "a rule lives with its
+vocabulary, and some rules are queries", gated on a second **module** needing it.
+The table above is unchanged and no new edge appears.
