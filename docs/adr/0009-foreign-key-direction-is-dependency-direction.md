@@ -94,3 +94,14 @@ which `docs/MODULES.md` had made private without exception. ADR-0020 says it
 may, in this ADR's direction and only between two `server/` folders. The graph
 is unchanged — no new edge, no new cycle risk — and is still readable off
 `db/schema/`.
+
+**Narrowed by ADR-0029.** This ADR reads every foreign key as a dependency, and
+drawing the graph for the nine unbuilt modules found two places where that is
+wrong: `order.coupon_id` against `coupon_redemption.order_id` is a cycle in the
+schema as it stands, and six tables' `user_id` would make four modules depend on
+`customers` through a column none of them reads. ADR-0029 makes a key a
+dependency only where the holding module reads the row — excluding ADR-0003
+snapshot keys and keys to global infrastructure. Every change it makes removes
+an arrow, so the "no cycles" guarantee is restored rather than weakened, and the
+graph is still read off `db/schema/`, now with one question per key instead of
+none.
