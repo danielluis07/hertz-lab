@@ -108,6 +108,14 @@ Neither leaf owns data or a rule, so neither is a module by the test below. A
 sixth file is a smell for the same reason a fourth would have been: the frame
 splits where the client boundary falls, and nowhere else.
 
+> **Narrowed by ADR-0042: the count is derived, not budgeted.** The sentence
+> above is the test; the number is an observation about `components/admin/`.
+> `components/shop/` has **three** client boundaries where admin has two — a
+> search input, a cart badge and an account menu — so it could legitimately have
+> been six files. It is five, because the badge is a view of an aggregate and
+> goes to `modules/cart/` by the rule below. A sixth file is read against *the
+> frame splits where the client boundary falls*, never against admin's five.
+
 **Anything that owns data or a rule of its own becomes a module and is composed
 into the frame.** This is what stops the frame from growing into a junk drawer.
 Admin notifications are an aggregate — a table, an unread flag, a `markRead`

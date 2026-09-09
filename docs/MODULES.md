@@ -277,11 +277,22 @@ six single-audience modules stay flat — `trpc.cart.get`, never
 
 **The shop's `options` is its own procedure.** A catalogue filter needs Brand
 rows, and `brands.admin.options` runs on `adminProcedure`, so a shop route
-calling it gets `FORBIDDEN`. `brands.shop.options` and `categories.shop.tree`
+calling it gets `FORBIDDEN`. `brands.shop.options` and `categories.shop.roots`
 exist in their own right. Where the two audiences ask the same question of the
 database, that is ADR-0010's trigger reaching a second caller, and the query
 moves to the module's `server/queries.ts` — on the second caller, not in
 anticipation of one.
+
+> **Corrected by ADR-0042: there is no `tree` read.** This section named
+> `categories.shop.tree` before any shop surface was designed. None of them
+> wants two nested levels in one payload — the frame wants root name and slug,
+> `/`'s Categorias strip wants roots and their picture, and a root Category
+> page's child strip arrives with that Category's own `bySlug` read. So
+> `categories.shop.roots` exists instead, returning roots with their picture,
+> sorted alphabetically in the procedure with `localeCompare(…, "pt-BR")`
+> because `CONTEXT.md` gives Categories no inherent order and the database
+> collation should not be the one to choose. The frame renders on every route in
+> the store, which is the one place over-fetching is paid repeatedly.
 
 **Which base procedure.** The vocabulary in `trpc/init.ts` is still complete;
 the shop adds nothing to it. `baseProcedure` for everything in the catalogue —
@@ -298,7 +309,7 @@ free, and it is the same lever the `(shop)` frame is deciding for itself.
 **The shop addresses by Slug.** A shopper never holds an id, so the detail read
 is `bySlug`, not `byId`, and it returns `null` for the page to turn into
 `notFound()` — reads resolve absence to "absent" (`docs/DATA-FLOW.md`). Reads
-are `list`, `bySlug`, `options`, `tree`; writes take their domain verb from
+are `list`, `bySlug`, `options`, `roots`; writes take their domain verb from
 `CONTEXT.md`'s own vocabulary, exactly as admin's do.
 
 **Visibility is one named clause.** Only `active` Products are ever visible to a

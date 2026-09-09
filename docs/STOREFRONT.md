@@ -67,12 +67,12 @@ That asymmetry is load-bearing. The header carries flat root links and no
 dropdown (below), so the category page is where the second level of the tree is
 discovered.
 
-Search lives here too: `/produtos?q=`, never a `/busca` route. Search narrows
+Search lives here too: `/produtos?busca=`, never a `/busca` route. Search narrows
 the catalogue; it does not deserve a duplicate grid, filter bar and pagination
 to change one heading. Params follow ADR-0005 and parse through ADR-0014's
 lenient schema.
 
-**Heading.** `/produtos` → *Produtos*. `?q=fones` → *Resultados para "fones"*.
+**Heading.** `/produtos` → *Produtos*. `?busca=fones` → *Resultados para "fones"*.
 A Category → its name, with its description beneath when it has one.
 
 **The Category picture never appears on the Category's own page.** It appears on
@@ -87,7 +87,7 @@ the list stays server markup, only the filters cross the boundary.
 - **Marca** — the whole Brand list. ADR-0025 classifies Brands as bounded, so
   there is no search-inside-the-filter.
 - **Preço** — a min/max in reais, converted to cents at the seam.
-- **Ordenar** — `?ordenar=`: relevância (offered only when `?q=` is present),
+- **Ordenar** — `?ordenar=`: relevância (offered only when `?busca=` is present),
   mais recentes, menor preço, maior preço, melhor avaliados.
 - **No Categoria filter.** On `/produtos` the tree is the header's job; on a
   category page it would contradict the fixed narrowing above.
@@ -192,39 +192,21 @@ a rejection notice.
 ## The frame
 
 `components/shop/`. `DESIGN.md` leaves its visual design open; this fixes its
-contents and its behaviour.
+contents and its behaviour. Five files, and the split between them is where the
+client boundary falls and nowhere else (ADR-0015, narrowed by ADR-0042):
+
+```
+components/shop/
+  root-categories.ts      the cache()-wrapped read
+  site-header.tsx         server
+  site-footer.tsx         server
+  site-search.tsx         client — useRouter().push
+  account-menu.tsx        client — authClient.useSession()
+```
 
 **Header** — wordmark, flat **root** Category links plus a `Produtos` link, a
 search input from `md` (an icon below it), the cart as a plain link with a count
 badge, and the account affordance.
-
-**Static, not sticky.** The store is short pages and generous space, and a bar
-pinned through every scroll contradicts that on every page.
-
-**No dropdown nav.** With a two-level tree (ADR-0022) the children are one click
-away on a page that shows them properly, and a dropdown per root puts focus
-management and hover intent on every page to buy discoverability the category
-page already provides.
-
-**The cart is a link, not a Sheet.** A slide-over cart is the reflex, and it is
-a second cart UI to build and keep in sync for a store that has not shipped its
-first. `/carrinho` has to exist and be good regardless.
-
-**The frame resolves the visitor on the client (ADR-0034).**
-`app/(shop)/layout.tsx` never reads the session, because a Request-time read
-there makes every `(shop)` route dynamic and there is no static-shell middle
-ground at `cacheComponents: false` (ADR-0031). So: the cart icon-link is static
-markup for everyone; its badge is an absolutely-positioned element that renders
-nothing until the count resolves and is non-zero, never `0` and never a
-skeleton; the badge reads `trpc.cart.get` with `useQuery` and `select`, gated on
-the session, so a logged-out visitor fires no cart request at all; and the
-account affordance is a client leaf on `authClient.useSession()` swapping
-`Entrar` for a name-and-`Sair` menu in a fixed-width slot. The standing rule is
-that **nothing inside a cached shop route may vary per visitor on the server.**
-
-**Who mounts the frame.** `(shop)` and `(account)` — `app/(account)/layout.tsx`
-imports `components/shop/` directly and takes the header *and* the footer, since
-`/minha-conta` is a storefront destination. `(auth)` does not.
 
 **Footer** — three columns on desktop, stacked on mobile: **Loja** (root
 Categories), **Institucional** (the five pages), **Contato** (email, and the one
@@ -234,6 +216,100 @@ No newsletter form — it has no backend, and a dead input is worse than no inpu
 No payment-method or social icon strip: that is the flooded-badge idiom
 `DESIGN.md` rejects.
 
+**Static, not sticky.** The store is short pages and generous space, and a bar
+pinned through every scroll contradicts that on every page.
+
+**No dropdown nav, and no active state.** With a two-level tree (ADR-0022) the
+children are one click away on a page that shows them properly, and a dropdown
+per root puts focus management and hover intent on every page to buy
+discoverability the category page already provides. Active state is declined for
+its own reason: ADR-0034 forbids `useSelectedLayoutSegments()` here, so it would
+cost `usePathname()` and turn the header's links into a client component to
+highlight one of them.
+
+**The cart is a link, not a Sheet.** A slide-over cart is the reflex, and it is
+a second cart UI to build and keep in sync for a store that has not shipped its
+first. `/carrinho` has to exist and be good regardless.
+
+### The nav is read, not declared
+
+**The root Categories come from the catalogue** (ADR-0042).
+`components/shop/root-categories.ts` exports
+`getRootCategories = cache(() => caller.categories.shop.roots())`; the header and
+the footer each call it and React dedupes within the render pass, so the layouts
+pass nothing. `caller` is not memoised on its own — `trpc/server.tsx` wraps only
+`getQueryClient` — so without the `cache()` the frame would issue the query
+twice per render.
+
+`categories.shop.roots` returns roots with their picture, **alphabetically**,
+sorted in the procedure with `localeCompare(…, "pt-BR")` rather than by the
+database's collation. `CONTEXT.md` gives Categories no inherent order and leaves
+it to the surface; sorting in the read is what keeps the header, the footer and
+the home strip from disagreeing. There is no cap on the count: if the roots
+outgrow the header, the answer is fewer root Categories, not a dropdown.
+
+This is the one place the two frames diverge, and the reason is one line: a nav
+entry that is code is declared (`components/admin/nav.ts`), a nav entry that is
+a row is read. It costs a reachable database in `next build`, which the five
+institucional pages did not previously need.
+
+### The frame resolves the visitor on the client (ADR-0034)
+
+`app/(shop)/layout.tsx` never reads the session, because a Request-time read
+there makes every `(shop)` route dynamic and there is no static-shell middle
+ground at `cacheComponents: false` (ADR-0031). A *database* read is not a
+Request-time read, which is what lets the nav above coexist with seven static
+routes.
+
+So: the cart icon-link is static markup for everyone; its badge is an
+absolutely-positioned element that renders nothing until the count resolves and
+is non-zero, never `0` and never a skeleton; the badge reads `trpc.cart.get`
+with `useQuery` and `select`, gated on the session, so a logged-out visitor
+fires no cart request at all; and the account affordance is a client leaf on
+`authClient.useSession()` swapping `Entrar` for a name-and-`Sair` menu in a
+fixed-width slot. The standing rule is that **nothing inside a cached shop route
+may vary per visitor on the server.**
+
+**`Sair` does not confirm.** ADR-0012's rule is an admin rule and
+`ConfirmProvider` is mounted in `app/(admin)/layout.tsx` only: an Admin mid-edit
+loses work, a shopper loses nothing, because a Cart is a permanent row waiting
+on the next sign-in. It signs out and lands on `/`, read from
+`modules/auth/redirects.ts`.
+
+### Search is a form that writes a URL
+
+`site-search.tsx` is a client component pushing `/produtos?busca=…` through
+`useRouter()`. A native `<form action="/produtos">` would ship no JavaScript at
+all and was rejected: a document navigation throws away the prefetched
+`produtos/loading.tsx` boundary (ADR-0040) on a store whose caching story is
+soft navigation between ISR'd routes, and the frame already ships client leaves
+for the badge and the account menu.
+
+**The input is uncontrolled and always empty.** It may not read
+`useSearchParams()`: on a static route that fails the production build without a
+`<Suspense>` boundary, and inside one it client-side-renders the tree up to that
+boundary — and the frame mounts on every prerendered route in the store. So on
+`/produtos?busca=fones` the heading echoes the term and the input beside it is
+blank. This is the header's only concession and it is accepted rather than
+engineered around.
+
+### Ownership of the three client leaves
+
+ADR-0015's test — *anything that owns data or a rule of its own becomes a module
+and is composed into the frame* — does not answer the three the same way:
+
+| Leaf | Lives at | Why |
+| --- | --- | --- |
+| Search input | `components/shop/site-search.tsx` | queries nothing; it writes a URL |
+| Cart badge | `modules/cart/components/cart-badge.tsx` | a view of an aggregate — the `<NotificationBell />` case |
+| Account menu | `components/shop/account-menu.tsx` | no module owns the session; the `admin-user-menu.tsx` precedent |
+
+**Who mounts the frame.** `(shop)` and `(account)` — `app/(account)/layout.tsx`
+imports `components/shop/` directly and takes the header *and* the footer, since
+`/minha-conta` is a storefront destination. `(auth)` does not. A **page** never
+imports the frame, which is why `/`'s Categorias strip issues its own roots read
+rather than sharing the memoised one.
+
 ## Institucional
 
 One shared layout for `/sobre`, `/contato`, `/termos-de-uso`,
@@ -241,8 +317,32 @@ One shared layout for `/sobre`, `/contato`, `/termos-de-uso`,
 the container, `py-16 md:py-24`, page-heading scale from `DESIGN.md`, and a
 prose ruleset scoped to the block. No sidebar, no table of contents.
 
-`/contato` adds a contact block. It does **not** get a form until there is
-something behind it.
+**The layout provides the measure and the prose scope, and nothing else.** A
+layout cannot know a page's title, so every page owns its own `<h1>`, its own
+`metadata`, and all of its copy.
+
+**These five routes have no data flow at all.** The copy is authored as JSX in
+each `page.tsx` — not MDX, which is a content pipeline for authors who do not
+write TypeScript and there are none here, and not data, which puts prose
+somewhere with no formatting and no review diff. They are the only routes in the
+store that read nothing of their own, which is exactly why they prerender. The
+one thing that reads is the frame above them.
+
+**The three legal pages carry a last-updated line**, authored as a literal in
+the page. No shared component and no data source: a date maintained anywhere but
+beside the text it describes is a date that lies. `/sobre` and `/contato` carry
+none.
+
+`/contato` adds a contact block: the store's email as a `mailto:`, whatever else
+is true, and one line pointing at `/trocas-e-devolucoes` — "how do I return
+this" being the question a contact page actually receives. It does **not** get a
+form until there is something behind it.
+
+The store's contact facts live in `lib/store.ts`, because the footer's *Contato*
+column wants the same email. Two callers, no rule, so it is ordinary shared data
+rather than frame furniture. They are **plausible fiction**, said so in the
+file, so nobody wires a real inbox to an invented address or ships a fabricated
+CNPJ believing it.
 
 Nothing linked to these five pages before the footer existed.
 
