@@ -60,12 +60,40 @@ different name.
 
 **These are one surface.** The category page renders the identical heading,
 filter bar, grid and pagination; the Category is a **fixed** narrowing rather
-than a removable chip. Exactly one thing differs: a **root** Category page opens
-with a strip of its children, and a **child** Category page does not.
+than a removable chip.
 
-That asymmetry is load-bearing. The header carries flat root links and no
-dropdown (below), so the category page is where the second level of the tree is
-discovered.
+Next forces two route files, and what they share is one server component,
+`modules/products/shop/components/catalog.tsx`, taking `{ input, categoryIds }`.
+It owns the filter bar, the grid, the pagination and the empty state, and issues
+its own two reads — `products.shop.list` and `brands.shop.options` — in one
+`Promise.all`; ADR-0032 makes both `caller` reads with nothing to hydrate and
+nothing for the page to coordinate. Each `page.tsx` owns
+`parseCatalogParams` and its heading and nothing else, so `/produtos/page.tsx`
+is about five lines. ADR-0011's "the page normalises once" is about the **input**,
+which the page still owns.
+
+**The root/child difference is derived, not a branch** (ADR-0043). A root
+Category page opens with a strip of its children and shows its whole subtree; a
+child page shows itself and no strip — but a child *has* no children, so both
+fall out of the same expression: `categoryIds = [id, ...children.map(c => c.id)]`,
+and a strip that renders nothing when the array is empty. There is one code path,
+and a contract that reads as an `if` invites someone to write one.
+
+The strip matters because the header carries flat root links and no dropdown
+(ADR-0042), so the category page is where the second level of the tree is
+discovered — which is also why a root page showing only directly-filed Products
+would leave the store's main navigation landing on empty grids.
+
+**A Category has exactly one URL.** `category.slug` is globally unique, so the
+last segment alone would resolve — and `/produtos/fones`,
+`/produtos/audio/fones` and `/produtos/qualquer-coisa/fones` would all render
+one Category, permanently, since a Slug never changes. ADR-0043 refuses that: a
+child's canonical path is `/produtos/<pai>/<filho>`, the chain is **validated**
+against the resolved Category's parent, and anything else is `notFound()` — soft,
+per ADR-0040. Three or more segments are refused without a read (ADR-0022).
+
+One read serves all of it: `categories.shop.bySlug` returns the Category with its
+parent's slug and its children.
 
 Search lives here too: `/produtos?busca=`, never a `/busca` route. Search narrows
 the catalogue; it does not deserve a duplicate grid, filter bar and pagination
@@ -82,15 +110,32 @@ another, and the product photography is the one that is selling something. This
 looks like an oversight and is not.
 
 **Filter bar.** A client component receiving option arrays as data — ADR-0016:
-the list stays server markup, only the filters cross the boundary.
+the list stays server markup, only the filters cross the boundary. It composes
+the **shared controls**, not the shared bar (ADR-0044): `FilterSearch`,
+`FilterSelect` and `FilterRange` carry every rule — debounce, `useOptimistic`,
+`replace` not `push`, `data-pending`, and *every filter change drops the page* —
+while the arrangement below is the shop's own.
 
-- **Marca** — the whole Brand list. ADR-0025 classifies Brands as bounded, so
-  there is no search-inside-the-filter.
-- **Preço** — a min/max in reais, converted to cents at the seam.
+- **Marca** — every Brand **with at least one visible Product**, so the control
+  never offers an option that can only return an empty grid. ADR-0025 classifies
+  Brands as bounded, so there is no search-inside-the-filter. Sorted with
+  `localeCompare(…, "pt-BR")` in the procedure, not `ORDER BY name`.
+- **Preço** — a min/max in reais, converted to cents at the seam. Both parameters
+  are written in **one** navigation, debounced like the search box; a range holds
+  uncommitted keystrokes for the same reason. `preco_min > preco_max` gets no
+  special handling and empty-states, per ADR-0041.
 - **Ordenar** — `?ordenar=`: relevância (offered only when `?busca=` is present),
-  mais recentes, menor preço, maior preço, melhor avaliados.
+  mais recentes, menor preço, maior preço, melhor avaliados. It is a **control**,
+  and mechanically it is a filter: written through `buildFilterHref`, dropping
+  `?pagina=` like any other. `buildSortHref` has no caller here — that is admin's
+  column headers, and a grid has none (ADR-0044).
 - **No Categoria filter.** On `/produtos` the tree is the header's job; on a
   category page it would contradict the fixed narrowing above.
+
+**Search defaults to relevância.** `?busca=` with no `ordenar` sorts by
+`ts_rank`; everything else defaults to *mais recentes*. Clearing the search while
+`ordenar=relevancia` stands resolves back to *recentes* in the schema, so the
+control shows the resolved value and the query key cannot fork.
 
 *Melhor avaliados* sorts on the denormalized `rating_average` (ADR-0004), which
 is `0` for every Product with no approved Review. On a young catalogue that sort
@@ -107,6 +152,18 @@ pagination are not optional here.
 and the struck-through `compare_at_price_amount` when the Variant carries one. A
 multi-Variant Product shows its lowest Variant price, prefixed *A partir de*.
 
+It lives at `modules/products/shop/components/product-card.tsx` and takes one
+row type, `ProductCardRow`, that **all three** of its callers project — this
+grid, `/`'s Novidades, and the product page's related section (ADR-0045). The
+`A partir de` test is `variantCount > 1`, which is why the row carries a count
+the card never prints: ADR-0033's minimum gives the number and not the label.
+The Cover join is **inner** — a visible Product always has one, because
+publishing an imageless Product is refused (`CONTEXT.md`).
+
+The card carries **no rating**, though *melhor avaliados* sorts by one:
+`rating_average` is `0` for every unreviewed Product (ADR-0004), and printing a
+zero on twenty-four cards is worse than printing nothing.
+
 No badges, no card shadow, no hover-reveal quick-add, **and no accent**. A grid
 of twenty-four cards each carrying a vermilion element is the precise failure
 the one-accent-per-viewport rule exists to prevent.
@@ -116,8 +173,22 @@ stays outside it**. Sorting is a different act from narrowing — the distinctio
 ADR-0025 draws for its own reasons — and sort is what a shopper on a phone
 reaches for most.
 
+**One tree, arranged responsively — never two behind breakpoint classes.** Two
+copies means two `FilterSearch` instances with two independent debounce timers
+writing the same parameter, and a resize mid-typing silently drops a keystroke.
+
 **Empty states.** A filtered result that matches nothing gets one line and a
 `Limpar filtros` action. A search that matches nothing echoes the query back.
+
+**`Limpar filtros` is `<Link href={pathname}>`** — it clears the entire query
+string and keeps the path, which works precisely because ADR-0043 puts the
+Category in the path and ADR-0041 puts every view in the query string, so
+everything clearable is by construction in one place and the link needs no logic
+and no JavaScript. It drops `ordenar` too: a stranded shopper is not protecting
+their sort. The search-empty state uses the same link with different copy.
+
+**`?pagina=999` is an empty state, not a 404 and not a clamp** — a query string
+is a view (ADR-0041).
 
 ## Product — `/produto/[slug]`
 
