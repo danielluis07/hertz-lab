@@ -15,6 +15,16 @@ import type { ProductStatus } from "@/modules/products/constants";
  */
 
 /**
+ * Whether a shopper may buy the Product: only `active` is on sale
+ * (`CONTEXT.md`). The pure twin of `server/visibility.ts`'s `visibleProduct`
+ * clause, for a caller that has already fetched the status — a Cart keeps a
+ * line whose Product was archived, and has to say so rather than filter it out.
+ */
+export function isOnSale(status: ProductStatus): boolean {
+  return status === "active";
+}
+
+/**
  * The status half of the publish rule: a Product goes on sale from `draft`
  * (never sold) or `archived` (sold before).
  *
