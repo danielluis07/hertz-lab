@@ -664,6 +664,11 @@ default, so the catalogue awaits everything and takes `loading.tsx`, while
 `/carrinho` prefetches the Cart and takes a `<Suspense>` for admin's own reason.
 `(account)` is mixed and resolves per segment.
 
+Checkout follows the first branch twice (ADR-0050): `/checkout` prefetches the
+Cart, profile and saved Addresses, while `/checkout/[id]` prefetches the Order's
+safe Payment completion state. Neither segment needs `loading.tsx`; each route
+owns the `<Suspense>` boundary around its dynamic subtree.
+
 The second branch is not free-standing preference — without Cache Components a
 static route is prefetched whole, while **a dynamic route is not prefetched at
 all** unless it has a `loading.js` boundary. So the file is a gain on a dynamic

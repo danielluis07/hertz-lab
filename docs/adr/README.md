@@ -19,6 +19,7 @@ they overlap, the higher number carries the current rule.
 - [0029](0029-not-every-foreign-key-is-a-dependency.md) — Not every foreign key is a dependency.
 - [0033](0033-a-products-shop-price-is-its-lowest-variant.md) — A Product's shop price is its lowest Variant's price.
 - [0043](0043-a-category-path-is-a-canonical-subtree.md) — A Category path is a canonical subtree.
+- [0051](0051-free-shipping-is-recorded-as-a-discount.md) — Free shipping preserves the delivery charge and records an equal discount.
 
 ## Modules and their boundaries
 
@@ -61,6 +62,7 @@ they overlap, the higher number carries the current rule.
 - [0019](0019-aggregate-writes-reconcile.md) — An admin aggregate is written by one reconciling transaction.
 - [0036](0036-a-write-invalidates-what-it-changes-on-the-shop.md) — A write invalidates what it changes on the shop, not what module it lives in.
 - [0039](0039-the-checkout-transaction-is-ordered-by-its-locks.md) — The checkout transaction is ordered by its locks.
+- [0050](0050-checkout-places-once-payment-retries-the-order.md) — Checkout places once; later Payment attempts continue against the Order.
 
 ## Auth, sessions and URLs
 

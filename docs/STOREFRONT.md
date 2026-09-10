@@ -374,6 +374,139 @@ same transaction and, after commit, invalidates `/` and the literal Product path
 (ADR-0004, ADR-0036). Nothing on this route requires that moderation-side work
 to appear synchronously in an already-open browser tab.
 
+## Checkout — `/checkout` and `/checkout/[id]`
+
+Checkout is one placement form followed by one durable Payment-completion
+resource. The second route is not a wizard step: `/checkout` still has one form
+and no draft, while `/checkout/[id]` addresses the Order that exists after the
+form succeeds (ADR-0050).
+
+Both routes call `requireUser()`. The proxy matcher covers
+`/checkout/:path*`; its cookie check remains only the cheap first gate and each
+page owns the real role check (ADR-0006).
+
+### The placement form
+
+The form composes, in dependency order: **Customer → Address → Shipping Method
+→ Coupon → Order review → Payment**. These are structural sections, not visual
+instructions; `docs/DESIGN.md` and the building agent decide their presentation
+and every pt-BR sentence.
+
+The Customer section renders fresh session name and email as immutable checkout
+facts. It reads `customers.shop.profile`: where a profile exists, Document and
+phone are read-only and correction belongs to `/minha-conta/perfil`; where it
+does not, Document and phone become required placement input and
+`checkout.place` creates the profile without later updating it (ADR-0039).
+
+The Address section reads `customers.shop.addresses`. The saved default is
+selected initially, or the sole Address where exactly one exists; otherwise the
+shopper must choose. Create and edit compose the Customer module's existing
+Address mutations inline, persist the result and select it. Removal stays on
+`/minha-conta/enderecos`: checkout needs a destination, not the whole Address
+book. The transaction still re-reads the selected id and proves it belongs to
+the ambient User.
+
+The Shipping Method section receives every active method with id, name, carrier,
+base cost and estimate. No method is preselected: it changes the amount and the
+delivery promise. The Payment Brick likewise starts with no chosen method.
+
+The Coupon section owns an entered code separately from an **applied** code.
+Only an explicit apply action changes the quote; removal drops it. Typing issues
+no request, and placement never becomes the first moment the shopper learns
+whether the code worked.
+
+`checkout.quote({ shippingMethodId, couponCode? })` is the authoritative read.
+It re-reads the current Cart and selected active Shipping Method, validates the
+Coupon and its Redemption limits when present, and returns
+`{ subtotalAmount, shippingAmount, discountAmount, totalAmount, coupon }`.
+No total assembled in the browser is a total. Changing Shipping Method while a
+Coupon is applied runs the quote again because a free-shipping Coupon preserves
+the normal `shippingAmount` and returns that same value as `discountAmount`
+(ADR-0051).
+
+An empty Cart renders the personal-list empty state whose action points to
+`/produtos`. A Cart with any unavailable line renders no placement form and
+points back to `/carrinho` for repair; checkout neither changes quantities nor
+removes intent. A Cart that becomes stale while the form is open is caught by
+the same final transaction checks.
+
+Mercado Pago's Payment Brick owns the payment controls and card tokenisation.
+It is provider-specific browser code inside `payments`, not payment fields the
+Checkout module reimplements. Once the other required selections and an
+authoritative quote exist, its submission gives the checkout coordinator the
+provider-safe values for `checkout.place`.
+
+The final mutation takes the selected Address and Shipping Method ids, optional
+applied Coupon code, Document and phone only for an absent Customer profile,
+the Brick's safe Payment input, and the quote's `expectedTotalAmount`. Its
+transaction is exactly ADR-0039. The provider request begins only after commit,
+using the internal Payment id as its provider idempotency key.
+
+A transaction `CONFLICT` remains on this form. `items` invalidates `cart.get`
+and the quote; `couponCode`, `document` and `shippingMethodId` render against
+their owning control, with an inactive Shipping Method also refreshing the
+server-authored options. Provider approval, pending or rejection after commit
+is a successful placement result because the Order exists; it navigates with
+`replace` to `/checkout/<orderId>` rather than entering the mutation error path.
+
+The checkout hook invalidates `trpc.cart.pathFilter()` so the header badge and
+Cart page converge, and `trpc.customers.pathFilter()` because first checkout
+may have created the Customer profile. It owns no optimistic Order state.
+
+### The durable Payment completion
+
+`/checkout/[id]` first reads the Order by both id and ambient User id and calls
+`notFound()` for unknown and foreign Orders alike. It then hydrates one
+protected Payment-completion query for that Order. The query exposes an adapted,
+safe completion state to the Payments component; raw provider payload never
+crosses the RSC boundary.
+
+The completion state has one behaviour per persisted fact:
+
+| Latest Payment | Completion behaviour |
+| --- | --- |
+| provider-backed `pending` | show provider instructions/status and poll while mounted; no concurrent attempt |
+| `approved` | terminal success with a path to `/minha-conta/pedidos/<id>` |
+| `refunded` | terminal state with the same receipt path |
+| `rejected` or `cancelled` | offer a new Payment attempt against this Order |
+| `pending` with no provider id | provider initialisation did not complete; offer a new attempt |
+
+The retry may choose any supported method. It creates a new Payment row only
+after proving the Order belongs to the User, remains `pending_payment`, and has
+no provider-backed pending or approved attempt. It never writes the Order,
+Cart, stock or Redemption again. Webhooks remain authoritative; polling only
+lets an open route observe the persisted result.
+
+There is no automatic expiry policy. An unpaid Order continues to reserve its
+stock and Coupon use until payment succeeds or the existing Order cancellation
+transition releases it. Scheduling expiry is an operational effort, not a
+route clause.
+
+The Order-detail route remains a server-rendered immutable receipt. Its latest
+safe Payment summary gains no provider instructions, polling or retry; the two
+routes link rather than duplicate responsibilities.
+
+### Reads and boundaries
+
+`/checkout` starts unawaited prefetches for `cart.get`,
+`customers.shop.profile` and `customers.shop.addresses`, and reads the active
+Shipping Methods on the server. The form consumes the three hydrated queries
+under a page-owned `<Suspense>` boundary; Shipping Methods cross as ordinary
+props. `checkout.quote` is a cold client query enabled by the selected Shipping
+Method and the applied Coupon, never by half-typed code. There is no
+`loading.tsx`.
+
+`/checkout/[id]` awaits the Order ownership/existence read before rendering,
+then prefetches the live completion query under its own page-owned `<Suspense>`.
+It has no `loading.tsx` and owns `not-found.tsx`; because the missing-resource
+decision happens before the streamed section, an unknown Order remains a hard
+404.
+
+If the browser loses the placement response, `/checkout` refetches `cart.get`.
+A non-empty Cart leaves the form usable. An empty Cart is deliberately
+ambiguous: the route neither resubmits nor guesses which Order was created, and
+points to `/minha-conta/pedidos` for recovery.
+
 ## The frame
 
 `components/shop/`. `DESIGN.md` leaves its visual design open; this fixes its
@@ -546,7 +679,8 @@ resource while a query string is a view** (ADR-0041).
 | `/produto/[slug]` | static | — | archived / unknown (**hard**) | related hides when empty |
 | institucional ×5 | static | — | — | — |
 | `/carrinho` | dynamic | `<Suspense>` (Cart) | never | → `/produtos` |
-| `/checkout` | dynamic | its own decision | never | → `/produtos` |
+| `/checkout` | dynamic | `<Suspense>` (Cart, Customer, Addresses) | never | → `/produtos`; unavailable → `/carrinho` |
+| `/checkout/[id]` | dynamic | `<Suspense>` (Payment completion) | unknown / foreign (**hard**) | — |
 | `(auth)` ×2 | static | — | — | — |
 | `(account)` ×6 | dynamic | per segment | someone else's Order | → `/produtos` |
 
@@ -558,8 +692,8 @@ group-level file.
 
 `error.tsx` is **per route group** — `(shop)`, `(account)`, `(admin)`, plus the
 root. `(auth)` authors none: it has no data read to fail. `not-found.tsx` is
-**per segment**, only on the three that can call `notFound()`, so a group-level
-one would be unreachable.
+**per segment**, only on the four that can call `notFound()`, including the
+Payment-completion resource, so a group-level one would be unreachable.
 
 **No per-section error boundary anywhere on the shop, and no `catchError`.** A
 failed gallery or buy panel *is* a failed page — the shopper cannot buy — so the
@@ -588,6 +722,6 @@ arranged, the wording of an empty state, and every line of pt-BR copy.
 Those belong to whoever builds the surface, bounded by `DESIGN.md`. If this file
 starts describing markup, it has drifted.
 
-**Out of scope entirely: `/carrinho` and `/checkout`.** They are flows with
-steps and failure states, not compositions, and designing them as a list of
-blocks would be the wrong frame. They get their own decision.
+**`/carrinho` remains specified by its separate flow decision.** It is not a
+composition of route blocks and is folded into this document with that contract,
+not re-decided here.
