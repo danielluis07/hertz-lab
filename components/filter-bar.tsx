@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useOptimistic, useTransition } from "react";
-import { SearchIcon } from "lucide-react";
+import { useOptimistic, useRef, useTransition } from "react";
+import { SearchIcon, XIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -189,6 +190,7 @@ export function FilterSearch({
     debounceMs: SEARCH_DEBOUNCE_MS,
     resetKeys: [pageParam],
   });
+  const inputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div
@@ -198,14 +200,37 @@ export function FilterSearch({
         aria-hidden
         className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
       />
+      {/* `text` rather than `search`: the browser's own clear control differs
+          per engine and cannot be styled, so the box draws its own below. */}
       <Input
-        type="search"
+        ref={inputRef}
+        type="text"
+        enterKeyHint="search"
+        autoComplete="off"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={filter.placeholder}
         aria-label={filter.placeholder}
-        className="pl-8"
+        className={cn("pl-8", value && "pr-8")}
       />
+      {value && (
+        // A wrapper centres the button, because the Button's own press nudge
+        // is a translate and would fight a `-translate-y-1/2` on it.
+        <div className="absolute inset-y-0 right-1 flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Limpar busca"
+            className="text-muted-foreground"
+            onClick={() => {
+              setValue("");
+              inputRef.current?.focus();
+            }}>
+            <XIcon />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
