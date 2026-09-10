@@ -4,6 +4,7 @@ import {
   catalogListInputSchema,
   catalogParamsSchema,
   parseCatalogParams,
+  toCatalogSearchParams,
   type CatalogInput,
 } from "@/modules/products/shop/schemas";
 
@@ -255,6 +256,88 @@ describe("catalogParamsSchema", () => {
     for (const params of cases) {
       const once = parseCatalogParams(params);
       expect(catalogParamsSchema.parse(once)).toEqual(once);
+    }
+  });
+});
+
+describe("toCatalogSearchParams", () => {
+  /** The URL a parsed input spells, read back the way the page reads it. */
+  const reparse = (input: CatalogInput) =>
+    parseCatalogParams(Object.fromEntries(toCatalogSearchParams(input)));
+
+  test("spells the unfiltered catalogue as no query at all", () => {
+    expect(toCatalogSearchParams(defaults).toString()).toBe("");
+  });
+
+  test("writes every field under its Portuguese parameter name", () => {
+    const params = toCatalogSearchParams({
+      ...defaults,
+      search: "fone",
+      brandId: "brand_1",
+      promotion: true,
+      sort: "menor-preco",
+      page: 3,
+    });
+
+    expect(Object.fromEntries(params)).toEqual({
+      busca: "fone",
+      marca: "brand_1",
+      promocao: "1",
+      ordenar: "menor-preco",
+      pagina: "3",
+    });
+  });
+
+  test("writes the price range back in reais, as a shopper types them", () => {
+    const params = (priceMin: number) =>
+      toCatalogSearchParams({ ...defaults, priceMin }).get("preco_min");
+
+    expect(params(10_000)).toBe("100");
+    expect(params(9990)).toBe("99,90");
+    expect(params(5)).toBe("0,05");
+    expect(params(0)).toBe("0");
+    expect(
+      toCatalogSearchParams({ ...defaults, priceMax: 123_456 }).get("preco_max"),
+    ).toBe("1234,56");
+  });
+
+  test("omits the sort when it is the default for the search", () => {
+    // The first page and a paged link must share one URL per view.
+    expect(toCatalogSearchParams(defaults).has("ordenar")).toBe(false);
+    expect(
+      toCatalogSearchParams({ ...defaults, search: "fone", sort: "relevancia" })
+        .has("ordenar"),
+    ).toBe(false);
+  });
+
+  test("keeps a sort that differs from the search's default", () => {
+    expect(
+      toCatalogSearchParams({ ...defaults, search: "fone", sort: "recentes" }).get(
+        "ordenar",
+      ),
+    ).toBe("recentes");
+  });
+
+  test("omits the first page", () => {
+    expect(toCatalogSearchParams({ ...defaults, page: 1 }).has("pagina")).toBe(
+      false,
+    );
+  });
+
+  test("round-trips through parseCatalogParams", () => {
+    const cases: RawParams[] = [
+      {},
+      { busca: "fone de ouvido", pagina: "2" },
+      { busca: "fone", ordenar: "recentes" },
+      { preco_min: "99,9", preco_max: "0,05", promocao: "1" },
+      { preco_min: "500", preco_max: "100" },
+      { marca: "brand_1", ordenar: "mais-vendidos", pagina: "999" },
+      { ordenar: "relevancia", pagina: "abc", preco_min: "1.000" },
+    ];
+
+    for (const raw of cases) {
+      const input = parseCatalogParams(raw);
+      expect(reparse(input)).toEqual(input);
     }
   });
 });

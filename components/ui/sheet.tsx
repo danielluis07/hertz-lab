@@ -1,5 +1,11 @@
 "use client"
 
+// One deliberate change from the shadcn source: SheetContent forwards
+// `container` and `keepMounted` to its portal. The catalogue's filter Sheet
+// needs both — rendered inside the page's `group`, so a pending control in it
+// still dims the grid, and kept mounted, so closing it mid-debounce does not
+// unmount a price box and drop what was typed. `shadcn add sheet` will
+// overwrite it.
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 
@@ -41,13 +47,16 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  container,
+  keepMounted,
   ...props
-}: SheetPrimitive.Popup.Props & {
-  side?: "top" | "right" | "bottom" | "left"
-  showCloseButton?: boolean
-}) {
+}: SheetPrimitive.Popup.Props &
+  Pick<SheetPrimitive.Portal.Props, "container" | "keepMounted"> & {
+    side?: "top" | "right" | "bottom" | "left"
+    showCloseButton?: boolean
+  }) {
   return (
-    <SheetPortal>
+    <SheetPortal container={container} keepMounted={keepMounted}>
       <SheetOverlay />
       <SheetPrimitive.Popup
         data-slot="sheet-content"

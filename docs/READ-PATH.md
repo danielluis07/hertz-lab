@@ -244,11 +244,17 @@ Portuguese and `AGENTS.md` makes every identifier English, so one of the two has
 to give. **The schema keys stay English and the map is explicit.**
 
 `modules/products/shop/schemas.ts` holds `catalogParamsSchema` with English
-keys, a `CATALOG_PARAMS: Record<keyof CatalogInput, string>` beside it
-holding the Portuguese strings, and `parseCatalogParams` renaming through the
-map before it parses. That constant is what `PaginationNav`'s `paramKey`,
-`buildSortHref` and every `FilterSpec`'s `key` read — which is precisely why all
-three already take the key as an argument rather than assuming a vocabulary.
+keys and `parseCatalogParams`, which renames through
+`CATALOG_PARAMS: Record<keyof CatalogInput, string>` before it parses, and
+`toCatalogSearchParams`, which spells a parsed input back into the URL for the
+catalogue's server-rendered links. The map itself lives in
+`modules/products/shop/constants.ts`, because the catalogue's filter bar is a
+client component that reads it too, and importing it from `schemas.ts` would
+ship zod to the browser. That constant is what `PaginationNav`'s `paramKey` and
+every filter control's parameter names are read from: a `FilterSpec`'s `key`
+stays the English input key, and the shop's arranging component maps it through
+`CATALOG_PARAMS` — which is precisely why the controls take their parameter
+names as arguments rather than assuming a vocabulary.
 
 The home page adds `promotion` mapped to `promocao`. Only the literal public
 value `1` enables it; every other value parses as absent. It selects Products
