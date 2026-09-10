@@ -36,14 +36,17 @@ needs it and not before. A module with three pure rules and one form is three
 files and a folder; creating the other seven empty is how a convention becomes
 ceremony.
 
-`products` is the worked instance, and it is **the layout above minus five
+`products` is the worked instance, and it is **the layout above minus three
 entries** — every absence deliberate, none of them pending:
 
 | Absent | Why |
 | --- | --- |
-| `types.ts` | everything infers, from Zod or from `RouterOutput` |
+| `types.ts` at the root | everything infers, from Zod or from `RouterOutput` |
 | `components/`, `hooks/` at the root | nothing is shared across audiences yet |
-| `shop/`, `server/shop.ts` | the shop's surfaces are not built |
+
+`shop/types.ts` is the one hand-written type, and the exception proves the
+row above: `ProductCardRow` (ADR-0045) is a contract several reads are held to,
+so no single read is its inference source.
 
 What it has instead of `<concept>.ts` is `status.ts` and `images.ts` — rule 4
 in two files, the second holding the one thing a Product's photographs know

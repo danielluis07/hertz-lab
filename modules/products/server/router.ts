@@ -2,6 +2,7 @@ import "server-only";
 
 import { createTRPCRouter } from "@/trpc/init";
 import { adminRouter } from "@/modules/products/server/admin";
+import { shopRouter } from "@/modules/products/server/shop";
 
 /**
  * Composed into `trpc/routers/_app.ts` under the module's own name, so the
@@ -11,4 +12,5 @@ import { adminRouter } from "@/modules/products/server/admin";
  */
 export const productsRouter = createTRPCRouter({
   admin: adminRouter,
+  shop: shopRouter,
 });

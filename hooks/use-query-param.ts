@@ -90,8 +90,7 @@ export function useQueryParam(
     const href = buildFilterHref({
       pathname,
       searchParams,
-      key,
-      value: committed,
+      values: { [key]: committed },
       resetKeys: resetKeysToken ? resetKeysToken.split(",") : [],
     });
 

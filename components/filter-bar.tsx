@@ -173,8 +173,7 @@ function FilterSelect({
               buildFilterHref({
                 pathname,
                 searchParams,
-                key: filter.key,
-                value: next,
+                values: { [filter.key]: next },
                 resetKeys: [PAGE_KEY],
               }),
               { scroll: false },
