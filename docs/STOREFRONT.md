@@ -234,69 +234,145 @@ The store's most important page, and the one `DESIGN.md` stakes a position on:
 Specifications are a feature the shopper came for, not fine print below the
 fold.
 
-**Above the fold, two columns.**
+The route holds five blocks, in order: **purchase area → Specifications →
+Description → Reviews → Related Products**. Specifications render only when the
+Product has them; Related Products render only when the derived result is not
+empty. The Reviews block remains present when no approved Reviews exist because
+an entitled shopper may still write the first one. `docs/DESIGN.md`, not this
+contract, decides the blocks' appearance.
 
-*Gallery* — square (ADR-0021), a main image with thumbnails. Images are scoped
-to the selected Variant when it has its own, falling back to the Product's.
+### The purchase area is one client-owned interaction
 
-*Buy panel* — Brand as meta, the `<h1>`, rating with review count linking down
-to the reviews, price and compare-at, the Variant selector, stock state,
-quantity, and `Comprar` as this page's one vermilion fill.
+The purchase area composes the Gallery and Buy panel under one client entry
+point. Selected Variant, selected Image and quantity are one state: splitting
+them into independent client leaves would require a second synchronization
+mechanism for facts that always change together. Description, Specifications,
+the initial Reviews and Related Products remain server-rendered.
 
-**The Variant selector renders only when there are two or more Variants.** Every
-Product has at least one (`CONTEXT.md`) and most will have exactly one; a select
-with a single option is noise.
+The first Variant in the Admin-authored `position` order is selected initially,
+even when it is out of stock. The selector renders only when the Product has
+more than one Variant. Changing Variant resets the selected Image and quantity
+to their first values so intent from one sellable unit cannot leak into another.
+There is no Variant query parameter: the canonical Product URL remains one URL,
+and the route reads no `searchParams` that would cost its prerender (ADR-0035).
 
-**Below, in order.** Description → **Especificações**, a two-column table with
-values in `font-mono` (mono is for what the shopper compares character by
-character) → **Avaliações** → **related Products**.
+The Gallery renders the selected Variant's ordered Images when it has any;
+otherwise it renders the ordered Product-level Images. This has no third runtime
+fallback to a sibling Variant's photograph: `CONTEXT.md` now requires an active
+Product to supply an applicable Image for every Variant, either Product-wide or
+Variant-specific. A single-image Gallery renders no thumbnail control.
 
-Related Products are derived: other active Products in the same Category,
-excluding this one. **The section is hidden entirely when it is empty.** Falling
-back to the same Brand to avoid a blank is padding, and this store does not pad.
+The Buy panel holds the Brand name, Product heading, rating summary, selected
+Variant price and compare-at price, the conditional Variant selector, stock
+state, quantity, `Comprar`, and the Wishlist control. With no approved Review it
+links to the Reviews block with a no-reviews state rather than displaying a
+numeric zero. A zero-stock Variant remains selectable and may be saved, but its
+quantity and Cart action are unavailable; a positive quantity may never exceed
+current stock.
 
-There is no wishlist toggle yet. A Wishlist saves *Variants* (`CONTEXT.md`), so
-the control belongs against the selected Variant — a fiddly interaction to
-design before the account surfaces exist.
+`Comprar` calls the Cart's shared `add` mutation for the selected Variant and
+quantity, stays on the Product page, and lets that mutation's invalidation update
+the frame badge. An anonymous visitor follows the Cart contract to
+`/login?retorno=/produto/<slug>` and must press the action again after returning;
+the intent is never replayed. The Wishlist control follows the same selected
+Variant and the account contract: its protected membership query is a cold,
+session-gated `useQuery`, never a server prefetch or hydration on this page.
 
-### Reviews are a client island
+### The Product read and Related Products
 
-A Review requires a verified purchase: it is always linked to the delivered
-Order that entitles its author (`CONTEXT.md`). So the form cannot simply be
-rendered — the page must know whether *this* User has a delivered Order
-containing *this* Product.
+`products.shop.bySlug({ slug })` is a `baseProcedure` returning `null` unless
+the slug names an active Product. The page turns `null` into `notFound()`, so an
+unknown, draft or archived Product keeps the hard 404 ADR-0040 requires. An
+out-of-stock active Product remains a resource and renders normally.
 
-**That check does not make the page dynamic.** The approved Reviews, the specs,
-the gallery and the catalogue data all render once for everyone. A small
-`"use client"` component asks tRPC the entitlement question after mount.
+The read returns one page projection of the Product Aggregate: Product id,
+slug, name, description, Brand name, Category id, `ratingAverage`,
+`ratingCount`, ordered Variants (`id`, `name`, price, compare-at and stock),
+ordered Images (`id`, `variantId`, S3 key and alt text), and ordered
+Specifications (`id`, label and value). It excludes Variant freight dimensions,
+timestamps and every other column no block renders. Brand and Category remain
+references rather than Aggregate children; their selected fields merely travel
+with this read.
 
-**This query is deliberately not prefetched and not hydrated.** ADR-0011 says a
-query is prefetched and hydrated *iff* a client component calls
-`useSuspenseQuery`; this island calls a plain `useQuery` and does neither. That
-is not a violation of the ADR — it is a shape the ADR does not describe, because
-the answer is per-visitor on a page that must not be. Recorded here so the next
-reader does not "fix" it into the prefetch pattern and dynamise the store's most
-cacheable route.
+After the page proves the Product exists, it starts the first public Reviews
+page and Related Products read in parallel. All three reads use `caller`; no
+catalogue query is dehydrated. The route exports
+`generateStaticParams() { return [] }`, reads no Request-time API, and owns no
+`loading.tsx` or section Suspense boundary. Its first uncached visit renders and
+caches the whole route; write-side `revalidatePath` obligations remain ADR-0036.
 
-**What renders in each state:**
+`products.shop.related({ productId, categoryId })` returns at most four
+`ProductCardRow` values: other active Products assigned to that exact Category,
+newest first and then id, excluding the current Product. It does not widen a
+root Category to its descendants, fall back to Brand, personalise or randomise.
+When several Variants share the minimum card price, Variant position and then id
+choose the price-driving row whose `compareAtPriceAmount` travels with it. That
+tie-break applies to every `ProductCardRow` read, not only this one.
+
+### Public Reviews and the writing island
+
+`reviews.shop.list({ productId, cursor? })` is a public `baseProcedure`. It
+returns approved Reviews only, newest first and then id, five at a time as
+`{ items, nextCursor }`; `ratingCount` already supplies the total, so the query
+does not count the same rows again. A row carries rating, optional title, body,
+submission date and a public author label computed from the User's current first
+name plus last initial. It carries no User id, full name or redundant
+verified-purchase boolean: the component may state that the purchase is verified
+because every Review has that invariant.
+
+The first page is read through `caller` and rendered on the server. When
+`nextCursor` exists, a small client leaf progressively appends later pages from
+the same public procedure. The initial rows do not enter the TanStack Query
+cache and no public Review read is prefetched or hydrated. An empty first page
+renders the Reviews block's empty state rather than hiding the block.
+
+Writing is a separate client island because eligibility varies by visitor on a
+route that may not. It waits for `authClient.useSession()` and calls the
+protected `reviews.shop.writingState({ productId })` through a plain, cold
+`useQuery` only when a User exists. It is deliberately neither prefetched nor
+hydrated: a server `protectedProcedure` would read headers and turn the store's
+only on-demand-prerendered route dynamic (ADR-0035).
+
+The state is one discriminated value, and every settled and transient state has
+one answer:
 
 | State | Renders |
 | --- | --- |
-| Logged out | nothing |
-| No delivered Order with this Product | nothing |
-| Entitled, none written | the form |
-| Written, `pending` | a quiet awaiting-moderation line |
-| Written, `approved` | nothing — it is already in the list |
-| Written, `rejected` | **nothing** |
+| Session unresolved or logged out | nothing |
+| Writing-state query pending | nothing |
+| Writing-state query failed | a local retry state |
+| `ineligible` | nothing |
+| `eligible` | the Review form |
+| `pending` | an awaiting-moderation state |
+| `approved` | a published state |
+| `rejected` | a not-published state, never another form |
 
-The first two are silence because telling a shopper they may not review a thing
-they have not bought is noise on a page selling it. The `pending` line exists so
-nobody writes the same review twice.
+The form submits rating (an integer from 1 through 5), an optional trimmed title
+of at most 120 characters, and a trimmed body from 20 through 2,000 characters.
+An empty title becomes `null`. Its rating control is accessible; its visual
+treatment and every pt-BR sentence remain the building agent's design work. This
+effort adds no shopper edit, removal, appeal or second submission.
 
-`rejected` is the case that gets missed. `review_user_product_unique`
-(`db/schema/content.ts`) still blocks a second attempt, so a form that reappears
-here submits straight into a unique-index violation. Silence is also kinder than
-a rejection notice.
+`reviews.shop.create({ productId, rating, title?, body })` is a protected tRPC
+mutation and is the authorization boundary. It takes neither `userId` nor
+`orderId`: inside the write it derives the ambient User, refuses a missing or
+inactive Product, rejects an existing Review, and selects the most recently
+delivered Order belonging to that User whose Items reach this Product through
+their Variants. `deliveredAt` descending and then id is the deterministic proof
+when several Orders qualify. It rechecks ownership, delivered status and
+Product inclusion in the write; the writing-state query and the UI authorize
+nothing. A unique-index race becomes a deliberate `CONFLICT`, with no field
+payload because no editable field caused it.
+
+On success the island moves immediately to `pending` and invalidates only
+`writingState`. It does the same invalidation after a duplicate conflict so a
+stale eligible state converges on the existing Review; other failures retain
+the entered values and use the global mutation error path. A new pending Review
+changes neither the public approved list nor Product rating, so it invalidates
+neither. Later moderation recalculates the Product's denormalised rating in the
+same transaction and, after commit, invalidates `/` and the literal Product path
+(ADR-0004, ADR-0036). Nothing on this route requires that moderation-side work
+to appear synchronously in an already-open browser tab.
 
 ## The frame
 

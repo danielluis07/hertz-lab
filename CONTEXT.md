@@ -28,10 +28,11 @@ Brand, Category. A Product is never bought directly. A Product is **draft**
 (being written, invisible to shoppers), **active** (on sale) or **archived**
 (withdrawn from sale, kept because Orders still refer to it). *Publishing* and
 *archiving* are the Admin's two acts on that fact; a Product is never deleted.
-An **active** Product has at least one Image — a shopper cannot evaluate one
-that has never been photographed — so publishing an imageless Product is
-refused. A draft may be imageless: the description often precedes the photo
-shoot.
+An **active** Product is photographable for every Variant: it either has at
+least one Product-level Image, or every Variant has at least one Image of its
+own. A shopper cannot evaluate a Variant that has never been photographed, so
+publishing a Product that leaves one without an applicable Image is refused. A
+draft may be imageless: the description often precedes the photo shoot.
 
 **Variant** — the sellable unit: its own SKU, price, stock, and dimensions.
 Every Product has at least one Variant, even when there is only one thing to
