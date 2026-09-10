@@ -23,9 +23,13 @@ const ProductsPage = async ({
   const input = parseCatalogParams(await searchParams);
 
   return (
-    <div className="group">
-      <h1>{input.search ? `Resultados para "${input.search}"` : "Produtos"}</h1>
-      <Catalog input={input} />
+    // `group`: the filter controls inside set `data-pending`, and the grid
+    // wrapper in <Catalog> dims against it.
+    <div className="group mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-12 md:py-16">
+      <h1 className="text-3xl font-medium tracking-tight break-words md:text-4xl">
+        {input.search ? `Resultados para “${input.search}”` : "Produtos"}
+      </h1>
+      <Catalog input={input} pathname="/produtos" />
     </div>
   );
 };

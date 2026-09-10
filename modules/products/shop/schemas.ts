@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SortOrder } from "@/lib/utils/sort";
+import { CATALOG_PARAMS } from "@/modules/products/shop/constants";
 
 /**
  * The catalogue's `?ordenar=` values, each mapped to the English order the
@@ -61,8 +62,15 @@ const catalogParamsShape = {
 
 /**
  * The default sort is a function of the search: _relevância_ when there is one,
- * _recentes_ otherwise — and a _relevância_ left standing after the search was
- * cleared falls back the same way. Resolving it here makes it a property of
+ * _recentes_ otherwise.
+ */
+function defaultSort(search: string | undefined): CatalogSort {
+  return search ? "relevancia" : "recentes";
+}
+
+/**
+ * Fills the default sort in — and a _relevância_ left standing after the search
+ * was cleared falls back the same way. Resolving it here makes it a property of
  * the parsed object, so no caller computes a divergent one (ADR-0011).
  *
  * Idempotent: a resolved sort parses back to itself.
@@ -71,7 +79,7 @@ function resolveSort<TParams extends { search?: string; sort?: CatalogSort }>({
   sort,
   ...params
 }: TParams): Omit<TParams, "sort"> & { sort: CatalogSort } {
-  const fallback: CatalogSort = params.search ? "relevancia" : "recentes";
+  const fallback = defaultSort(params.search);
 
   return {
     ...params,
@@ -121,21 +129,6 @@ export const catalogListInputSchema = z
 export type CatalogListInput = z.infer<typeof catalogListInputSchema>;
 
 /**
- * Each input key's public parameter name (ADR-0005). What `PaginationNav`'s
- * `paramKey` and every catalogue filter control read, so no surface spells a
- * Portuguese parameter by hand.
- */
-export const CATALOG_PARAMS = {
-  search: "busca",
-  brandId: "marca",
-  priceMin: "preco_min",
-  priceMax: "preco_max",
-  promotion: "promocao",
-  sort: "ordenar",
-  page: "pagina",
-} as const satisfies Record<keyof CatalogInput, string>;
-
-/**
  * Whole reais with up to two centavo digits after either separator — what a
  * shopper types into a price box. Three digits after a separator is refused
  * rather than read: `1.000` is a thousand reais to a Brazilian and one real to
@@ -178,4 +171,47 @@ export function parseCatalogParams(
     priceMin: reaisToCents(searchParams[CATALOG_PARAMS.priceMin]),
     priceMax: reaisToCents(searchParams[CATALOG_PARAMS.priceMax]),
   });
+}
+
+/**
+ * Cents as the price box spells them: whole reais bare, centavos after a comma.
+ * No thousands separator, which `REAIS` would refuse.
+ */
+function centsToReais(cents: number): string {
+  const reais = Math.trunc(cents / 100);
+  const centavos = cents % 100;
+
+  return centavos === 0
+    ? String(reais)
+    : `${reais},${String(centavos).padStart(2, "0")}`;
+}
+
+/**
+ * `parseCatalogParams` run backwards: the query string a parsed input spells.
+ * What the catalogue's server-rendered links are built on — `PaginationNav`
+ * and the way back to the first page — since a server component has the parsed
+ * input and not the browser's `URLSearchParams`.
+ *
+ * Canonical rather than faithful: a default is omitted, so the unfiltered
+ * catalogue is a bare path and a paged link to a view shares the view's URL,
+ * and whatever the schema dropped from the URL stays dropped.
+ */
+export function toCatalogSearchParams(input: CatalogInput): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (input.search) params.set(CATALOG_PARAMS.search, input.search);
+  if (input.brandId) params.set(CATALOG_PARAMS.brandId, input.brandId);
+  if (input.priceMin !== undefined) {
+    params.set(CATALOG_PARAMS.priceMin, centsToReais(input.priceMin));
+  }
+  if (input.priceMax !== undefined) {
+    params.set(CATALOG_PARAMS.priceMax, centsToReais(input.priceMax));
+  }
+  if (input.promotion) params.set(CATALOG_PARAMS.promotion, "1");
+  if (input.sort !== defaultSort(input.search)) {
+    params.set(CATALOG_PARAMS.sort, input.sort);
+  }
+  if (input.page > 1) params.set(CATALOG_PARAMS.page, String(input.page));
+
+  return params;
 }
