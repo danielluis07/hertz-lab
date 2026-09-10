@@ -132,6 +132,10 @@ apart is a dashboard.
   at the data layer. At 1280px with 4 columns a Cover renders near 290px.
 - **Full-bleed is permitted only for the home hero and category strips.** Text
   never exceeds the container, on any surface.
+- The home Hero uses the committed 2400 × 1350 photograph at 4:3 on mobile and
+  16:9 from the medium breakpoint, capped at 70svh. Its essential subject stays
+  inside the central 1800 × 1350 safe region so both crops survive. The text
+  panel follows the photograph and never overlays it (ADR-0028).
 
 ## Elevation
 
