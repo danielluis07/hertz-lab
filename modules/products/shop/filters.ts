@@ -31,8 +31,12 @@ const SORT_LABELS = {
  *
  * There is **no Categoria filter** (`docs/STOREFRONT.md`): on `/produtos` the
  * tree is the header's job, and on a Category page it would contradict the
- * path. There is no search box either — search is the header's, and the
- * catalogue is where its results land.
+ * path.
+ *
+ * The search box writes the same `?busca=` as the header's. It is here as well
+ * because the header's input is always empty (`docs/STOREFRONT.md`), and this
+ * one shows the term the grid is for and refines it. Its placeholder promises
+ * no more than the Portuguese tsvector serves — no SKU search.
  */
 export function catalogFilters({
   brands,
@@ -46,6 +50,11 @@ export function catalogFilters({
   );
 
   return [
+    {
+      kind: "search",
+      key: "search",
+      placeholder: "Buscar produtos",
+    },
     {
       kind: "select",
       key: "brandId",

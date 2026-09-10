@@ -153,6 +153,10 @@ the **shared controls**, not the shared bar (ADR-0044): `FilterSearch`,
 `replace` not `push`, `data-pending`, and *every filter change drops the page* —
 while the arrangement below is the shop's own.
 
+- **Busca** — the same `?busca=` the header writes, as a debounced box in the
+  bar and outside the Sheet. It shows the term the grid is for and refines it,
+  which the header's always-empty input cannot (*Search is a form that writes a
+  URL*, below).
 - **Marca** — every Brand **with at least one visible Product**, so the control
   never offers an option that can only return an empty grid. ADR-0025 classifies
   Brands as bounded, so there is no search-inside-the-filter. Sorted with

@@ -30,6 +30,10 @@ const sortValues = (search: string | undefined) => {
 };
 
 describe("catalogFilters", () => {
+  test("offers a search box over the search key", () => {
+    expect(specFor(undefined, "search")?.kind).toBe("search");
+  });
+
   test("offers every Brand it is given, in the order it is given", () => {
     const brand = specFor(undefined, "brandId");
 
@@ -87,7 +91,7 @@ describe("activeFilterCount", () => {
   });
 
   test("counts only what the Filtrar Sheet holds", () => {
-    // Search is the header's, sort sits outside the Sheet, and the page is a
+    // Search and sort sit in the bar outside the Sheet, and the page is a
     // position rather than a narrowing.
     expect(
       activeFilterCount({

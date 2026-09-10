@@ -28,6 +28,9 @@ import type { CatalogInput } from "@/modules/products/shop/schemas";
  * controls carry every rule; this carries only the layout, which is the
  * catalogue's own:
  *
+ * - **The search box sits in the bar**, full width on a phone and inline from
+ *   `sm`: it shows the term the grid is for and refines it, which the header's
+ *   always-empty input cannot (`docs/STOREFRONT.md`).
  * - **A `Filtrar` Sheet holds the narrowing controls, at every width**, and
  *   **Ordenar stays outside it** — sorting is a different act from narrowing,
  *   and the one a shopper on a phone reaches for most. The same Sheet on
@@ -58,14 +61,26 @@ export function CatalogFilters({
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
   const activeCount = activeFilterCount(input);
+  const search = filters.find((filter) => filter.kind === "search");
   const sort = filters.find(
     (filter) => filter.kind === "select" && filter.key === "sort",
   );
-  const narrowing = filters.filter((filter) => filter !== sort);
+  const narrowing = filters.filter(
+    (filter) => filter !== search && filter !== sort,
+  );
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 border-y py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-y py-3">
+        {search?.kind === "search" && (
+          <FilterSearch
+            filter={search}
+            param={CATALOG_PARAMS[search.key]}
+            pageParam={CATALOG_PARAMS.page}
+            className="w-full sm:w-64"
+          />
+        )}
+
         <div className="flex items-center gap-4">
           <Sheet>
             <SheetTrigger render={<Button variant="outline" />}>
@@ -102,17 +117,17 @@ export function CatalogFilters({
             </SheetContent>
           </Sheet>
 
-          <p className="text-muted-foreground hidden text-sm tabular-nums sm:block">
+          <p className="text-muted-foreground hidden text-sm tabular-nums md:block">
             {formatProductCount(total)}
           </p>
         </div>
 
         {sort?.kind === "select" && (
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3">
             {/* The trigger is named by `aria-label`; this is its visible twin. */}
             <span
               aria-hidden
-              className="text-muted-foreground hidden text-xs tracking-wide uppercase sm:inline">
+              className="text-muted-foreground hidden text-xs tracking-wide uppercase lg:inline">
               {sort.label}
             </span>
             <FilterSelect

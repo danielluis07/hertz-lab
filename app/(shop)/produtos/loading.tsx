@@ -25,9 +25,10 @@ export default function CatalogLoading() {
 
       <Skeleton className="h-9 w-48 motion-reduce:animate-none md:h-10" />
 
-      <div className="flex items-center justify-between gap-4 border-y py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-y py-3">
+        <Skeleton className="h-8 w-full motion-reduce:animate-none sm:w-64" />
         <Skeleton className="h-8 w-24 motion-reduce:animate-none" />
-        <Skeleton className="h-8 w-44 motion-reduce:animate-none" />
+        <Skeleton className="ml-auto h-8 w-44 motion-reduce:animate-none" />
       </div>
 
       <ul
