@@ -250,6 +250,12 @@ map before it parses. That constant is what `PaginationNav`'s `paramKey`,
 `buildSortHref` and every `FilterSpec`'s `key` read — which is precisely why all
 three already take the key as an argument rather than assuming a vocabulary.
 
+The home page adds `promotion` mapped to `promocao`. Only the literal public
+value `1` enables it; every other value parses as absent. It selects Products
+whose price-driving lowest-priced Variant has
+`compareAtPriceAmount > priceAmount`, so every result's shared card can prove
+the promotion without a second pricing rule.
+
 It is a **second schema, not a reuse** of `productListParamsSchema`. "Paginated,
 and includes `draft` and `archived`" is a sentence only the admin can say, and
 the shop's price range has no admin counterpart at all. Both live in their
@@ -315,14 +321,43 @@ a shopper could construct `?ordenar=relevancia&direcao=desc`, which means
 nothing.
 
 So `?ordenar=` is a closed enum in Portuguese — `relevancia`, `recentes`,
-`menor-preco`, `maior-preco`, `avaliados` — and `CATALOG_SORTS` maps each to an
-English `{ sortBy, sortOrder }` pair, through the same seam the keys use. The
+`menor-preco`, `maior-preco`, `avaliados`, `maior-desconto`,
+`mais-vendidos` — and `CATALOG_SORTS` maps each to an English
+`{ sortBy, sortOrder }` pair, through the same seam the keys use. The
 schema sees `busca` and `ordenar` together, so it is also what falls `relevancia`
 back to the default when there is no search to be relevant to.
 
 The divergence is deliberate: admin's two parameters serve an internal surface
 where a hand-edited URL should degrade field by field, and the shop's one
-parameter serves five choices a shopper picks from a control.
+parameter serves a closed set of choices a shopper picks from a control.
+
+`maior-desconto` requires `promocao=1` to describe the home section's full
+view. It orders the relative reduction from the price-driving Variant largest
+first, then Product creation newest first, then id. Without the promotion
+filter it remains a valid view and places Products with no reduction after
+those with one.
+
+#### Best-selling stays one database query
+
+ADR-0047 adds `mais-vendidos` without changing the list envelope or the card
+row. `orders/server/sales.ts` owns an unexecuted per-Variant relation carrying
+only Variant identity and sold units; `products.shop.list` joins it to Variants,
+aggregates to one total per Product, and applies every catalogue predicate
+before `LIMIT` and `OFFSET`.
+
+This is intentionally not route composition. Two executed calls cannot preserve
+both boundedness and correctness: limiting Variants before the Product aggregate
+mis-ranks a Product whose sales are spread across Variants, while applying
+Product filters after a global ranking produces short or incorrect pages. The
+relation crosses the server boundary still unexecuted so the database remains
+the compositor.
+
+Selecting the sort keeps zero-sale Products with a score of zero and therefore
+does not change `total`. The home page's separate
+`products.shop.bestSellers({ excludeProductIds })` read is bounded to four
+`ProductCardRow` values and requires a positive score, because an unsold Product
+must not be labelled a best seller. Both are `baseProcedure` / `caller` reads;
+sold units never cross into `ProductCardRow`.
 
 #### Price is an aggregate
 
@@ -342,8 +377,14 @@ already follows.
 
 Applied: `products.shop.list` paginates, so it carries `total`, counted over the
 grouped query as a subquery because ADR-0033's `HAVING` makes the admin's flat
-`count()` unavailable. `brands.shop.options` and `categories.shop.tree` are
+`count()` unavailable. `brands.shop.options` and `categories.shop.roots` are
 bounded, so they are bare arrays.
+
+The four home reads — `products.shop.promotions`, `bestSellers`, `newest`, and
+`topRated` — are also bare arrays. Each has a hard limit of four and accepts no
+pagination. The latter three accept `excludeProductIds`, apply the exclusion
+before their ranking limit, and thereby backfill the page's no-duplicate
+contract. The route owns their sequence; the Products module owns each ranking.
 
 `reviews.shop.list` is the one to look at twice: ADR-0004 denormalises
 `product.ratingCount`, and the product page has read it before it ever asks for
@@ -723,4 +764,3 @@ to learn and hides the standard one. Where a module genuinely needs per-request
 dedup, it imports `cache` from `react` in its own `server/` file. Under ADR-0010
 there is currently nothing to dedup: `createTRPCContext` is already wrapped, and
 no query layer exists until a second caller needs one.
-

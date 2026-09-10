@@ -34,13 +34,16 @@ where it comes from.
 it is the only image in the Storefront that is not square.**
 
 It lives under `public/images/`, is imported statically so `next/image` receives
-its intrinsic dimensions, and carries `priority` — it is the LCP element of the
-store's most-visited page. The pattern is the one ADR-0021 already established
-for `image-placeholder.jpg`.
+its intrinsic dimensions and blur data, and carries `preload` with an explicit
+responsive `sizes` value — it is the LCP element of the store's most-visited
+page. `priority` was the name in the original decision, but Next 16 deprecates
+it in favour of `preload`; this wording follows the bundled Next 16.3.4 docs.
+The pattern is the one ADR-0021 already established for
+`image-placeholder.jpg`.
 
-The asset is commissioned at **2400 × 1350** with its subject held centre, so
-that both the `4/3` mobile crop and the `16/9` desktop crop survive. Rendered
-height is capped at `70svh`.
+The asset is commissioned at **2400 × 1350** with its essential subject inside
+the central **1800 × 1350** safe region, so both the `4/3` mobile crop and the
+`16/9` desktop crop survive. Rendered height is capped at `70svh`.
 
 Changing the hero is a commit.
 

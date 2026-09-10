@@ -31,7 +31,7 @@ displaced from the number onto the words beside it.
 
 ## Decision
 
-**One exported row type, `ProductCardRow`, which all three shop reads project
+**One exported row type, `ProductCardRow`, which every shop card read projects
 identically:**
 
 ```ts
@@ -60,7 +60,7 @@ edit to that Product, and nobody would connect the two.
 
 **The card lives at `modules/products/shop/components/product-card.tsx`.**
 ADR-0007's promotion gate requires a second **module** and it does not fire —
-all three callers are `products` surfaces. It does not go in `components/`.
+all callers are `products` surfaces. It does not go in `components/`.
 
 **The Cover join is inner, not left.** `CONTEXT.md` refuses to publish an
 imageless Product, and only `active` Products are visible (`MODULES.md`), so a
@@ -74,21 +74,27 @@ independent aggregates.
 
 ## Consequences
 
-**The three reads are each other's tests.** A read that projects something
+**The reads are each other's tests.** A read that projects something
 narrower will not typecheck against the card, which is the point: the contract
-is enforced by the compiler and not by whoever reviews the third one.
+is enforced by the compiler and not by whoever reviews the next one.
 
-**The reads themselves are not fixed here.** `/`'s _Novidades_ and the related
-section own their own queries in their own issues; what they owe this ADR is the
-shape they return. A fourth surface wanting a card inherits the row and adds
-nothing to it.
+**The reads themselves are not fixed here.** At acceptance, `/`'s _Novidades_
+and the related section owned their own queries in their own issues; what they
+owed this ADR was the shape they returned. Every later surface wanting a card
+inherits the row and adds nothing to it.
+
+**Expanded by the home-page contract.** `/` now has four independently ranked
+previews — Promoções, Mais vendidos, Novidades, and Mais bem avaliados — and
+each returns this exact row. The number of reads changed; the invariant did not.
+Ranking-only facts such as sold units and rating average remain inside the query
+unless the card itself is changed to render them.
 
 **The card carries no rating**, although _melhor avaliados_ sorts by one. That is
 `docs/STOREFRONT.md`'s card spec and not an oversight: `rating_average` is `0`
 for every Product with no approved Review (ADR-0004), and printing a zero on
 twenty-four cards is worse than printing nothing.
 
-**Adding a field is a change to three queries**, which is the honest cost of one
-shape and the reason to add one only when the card renders it. A field the card
-does not use is a field two of the three reads will eventually stop populating
+**Adding a field is a change to every card query**, which is the honest cost of
+one shape and the reason to add one only when the card renders it. A field the
+card does not use is a field one of those reads will eventually stop populating
 correctly.

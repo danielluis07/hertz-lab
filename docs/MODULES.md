@@ -122,6 +122,15 @@ resolves Variant ids into renderable lines — Product name, price, and the Cove
 which `CONTEXT.md` makes a position rather than a flag — and `cart`, `wishlist`
 and `checkout` all call it rather than each rewriting that rule.
 
+**One analytical read crosses in the otherwise-forbidden direction, by
+ADR-0047.** `orders/server/sales.ts` exports an unexecuted relation containing
+only Variant identity and sold units; `products/server/` joins it to Variants
+and completes Product ranking before any limit or page is applied. Executing
+either half first would require an unbounded transfer or an incorrect top-Variant
+approximation. This adds `products -> orders` to the graph, keeps Orders as a
+module that imports nothing, and does not permit Products to read Order tables
+directly.
+
 **That gate is about reads. Writes are governed by ownership instead**
 (ADR-0038): a write to a table belongs to the module that owns it, whatever the
 caller count — which is what `rating.ts` did all along, with one caller. The
@@ -137,6 +146,11 @@ Which way any of this may point is ADR-0009 as **narrowed by ADR-0029**: a
 foreign key is a dependency only where the holding module reads the row, so
 ADR-0003 snapshot keys and keys to the global `user` table create no arrow.
 ADR-0029 carries the full thirteen-module graph.
+
+ADR-0047 adds one explicit edge that cannot be inferred from a foreign key:
+`products -> orders`, for the bounded analytical relation above. The graph
+remains acyclic. Its four gates belong to that ADR; it is not a general reverse
+import rule.
 
 The trap the narrowing hides: **a module's `admin/` and `shop/` folders are not
 `server/`.** They render in the browser, so they may not import a `server/`
@@ -274,6 +288,12 @@ so that no route contract settles it by accident.
 `trpc.products.admin.list`, for the seven modules that have both audiences. The
 six single-audience modules stay flat — `trpc.cart.get`, never
 `trpc.cart.shop.get` — the same six that get no audience folder.
+
+The home page's four bounded Product rankings use semantic keys on that same
+router: `products.shop.promotions`, `bestSellers`, `newest`, and `topRated`.
+Each returns at most four `ProductCardRow` values. The latter three accept ids to
+exclude before their ranking limit; the route owns the cross-section sequence,
+so the module does not grow a page-shaped `home` procedure.
 
 **The shop's `options` is its own procedure.** A catalogue filter needs Brand
 rows, and `brands.admin.options` runs on `adminProcedure`, so a shop route

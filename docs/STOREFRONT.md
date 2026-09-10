@@ -26,35 +26,72 @@ deliberately not smuggled in through a hardcoded slug in a constants file.
 
 ## Home — `/`
 
-Three blocks. It is a short page, and that is the point.
+Six blocks, in this order: **Hero → Categorias → Promoções → Mais vendidos →
+Novidades → Mais bem avaliados**.
 
-**1. Hero.** A full-bleed photograph, then a paper panel beneath it inside the
-container: display line, one supporting line, and `Ver todos os produtos` — the
-page's one vermilion fill, pointing at `/produtos`.
+**1. Hero.** A committed static photograph followed by a separate text panel
+holding the page heading, one supporting line, and one primary link to
+`/produtos`. Text never overlays the photograph. The image is imported
+statically, rendered with `next/image`, marked `preload`, and given an explicit
+responsive `sizes` value because it is the page's LCP element. It has `alt=""`:
+the separate heading and supporting line carry the message, so the photograph
+is decorative. ADR-0028 owns the asset and its safe crop; the route contract
+owns only these non-visual loading and accessibility constraints.
 
-The photograph is `aspect-[4/3] md:aspect-[16/9] max-h-[70svh]`, statically
-imported with `priority`. It is the LCP element of the store's most-visited
-page. The asset is commissioned at 2400 × 1350 with its subject held centre so
-both crops survive; `svh` rather than `vh` because mobile browser chrome makes
-`vh` lie, and the cap because an uncapped 16:9 band at 1920 px is 1080 px tall —
-a first paint that is a photograph and no words.
+**2. Categorias.** `categories.shop.roots()` returns the root Categories,
+alphabetically ordered as ADR-0042 specifies. Each result is one link to
+`/produtos/<root-slug>` with its visible name and, when present, its square
+decorative picture. The picture has `alt=""`; the link text is the accessible
+name. A missing picture is omitted rather than replaced (ADR-0021).
 
-**Text never sits over the photograph.** A scrim was considered and rejected:
-the panel keeps the warm-paper ground, and paper-on-photo is a contrast failure
-that returns the day the asset is swapped.
+**3–6. Product previews.** Each section renders at most four shared
+`ProductCard` instances from a bare `ProductCardRow[]`, links to the full
+catalogue view below, and disappears when its result is empty:
 
-**2. Categorias.** The root Categories as a full-bleed strip of picture tiles —
-the second of the two full-bleed grants in `DESIGN.md`, and the surface the
-Category picture exists for.
+| Section | Full view | Derived order |
+| --- | --- | --- |
+| Promoções | `/produtos?promocao=1&ordenar=maior-desconto` | active Products whose price-driving lowest-priced Variant has `compareAtPriceAmount > priceAmount`; largest relative reduction, then newest, then id |
+| Mais vendidos | `/produtos?ordenar=mais-vendidos` | active Products with positive lifetime sold units from Orders currently in `paid`, `processing`, `shipped`, or `delivered`; units, then newest, then id (ADR-0047) |
+| Novidades | `/produtos?ordenar=recentes` | active Products; newest, then id |
+| Mais bem avaliados | `/produtos?ordenar=avaliados` | active Products with at least one approved Review; rating average, rating count, newest, then id |
 
-**3. Novidades.** The newest active Products, one row of the catalogue grid.
+The four sections contain no duplicate Product. Page order is precedence:
+Promoções claims its four first, Mais vendidos excludes those ids, Novidades
+excludes both earlier sets, and Mais bem avaliados excludes all three. Each
+later read backfills with its next eligible Product rather than returning a
+short row merely because an earlier section used one.
 
-**What is deliberately absent.** *Mais bem avaliados* — on a young catalogue it
-is empty or identical to Novidades, and a section that repeats the one above it
-is worse than no section. *Marcas* — a Brand is filterable, never addressable
-(`CONTEXT.md`), so its home is the filter bar, where it does its job. And no
-carousel: rotating a hero is the entrance animation `DESIGN.md` bans, wearing a
-different name.
+The Products shop router exposes four semantic `baseProcedure` reads:
+`promotions()`, `bestSellers({ excludeProductIds })`,
+`newest({ excludeProductIds })`, and
+`topRated({ excludeProductIds })`. Each owns its ordering and hard limit of
+four and returns `ProductCardRow[]`; none accepts a page size and none returns a
+`total`. The page calls them through the server `caller`. It starts
+`categories.shop.roots()` and `products.shop.promotions()` together, then runs
+the remaining Product reads in section order because each input depends on the
+ids already returned. A `products.shop.home()` procedure is rejected: page
+composition belongs to the route, while each reusable ranking belongs to the
+Products module.
+
+The full catalogue grows three public values to reproduce these sections:
+`promocao=1`, `ordenar=maior-desconto`, and `ordenar=mais-vendidos`.
+`promocao` is a filter, not a new route; values other than the literal `1`
+parse as absent. The catalogue's `avaliados` and `recentes` sorts remain the
+full views for the other two sections.
+
+`/` remains a static ISR route. The database reads do not use a Request-time
+API, so changing Categories, Products, approved Reviews, or an Order's counted
+status can reach the page without a deploy through the write-side
+`revalidatePath("/")` obligations in ADR-0036 and ADR-0047. The committed hero
+and its copy change only with a deploy.
+
+**What is deliberately absent.** *Marcas* was considered and declined: a Brand
+is filterable, never addressable (`CONTEXT.md`), so it belongs in the catalogue
+filter rather than as a home destination. Personalised recommendations and
+recently viewed Products require visitor-specific data and conflict with the
+static page. Curated collections, urgency blocks, and campaign banners require
+the curation schema this document explicitly refuses. A carousel is still
+absent: it is multiple competing heroes rather than another derived section.
 
 ## Catalogue — `/produtos` and `/produtos/[...categoria]`
 
@@ -125,7 +162,8 @@ while the arrangement below is the shop's own.
   uncommitted keystrokes for the same reason. `preco_min > preco_max` gets no
   special handling and empty-states, per ADR-0041.
 - **Ordenar** — `?ordenar=`: relevância (offered only when `?busca=` is present),
-  mais recentes, menor preço, maior preço, melhor avaliados. It is a **control**,
+  mais recentes, menor preço, maior preço, melhor avaliados, maior desconto,
+  mais vendidos. It is a **control**,
   and mechanically it is a filter: written through `buildFilterHref`, dropping
   `?pagina=` like any other. `buildSortHref` has no caller here — that is admin's
   column headers, and a grid has none (ADR-0044).
@@ -153,8 +191,8 @@ and the struck-through `compare_at_price_amount` when the Variant carries one. A
 multi-Variant Product shows its lowest Variant price, prefixed *A partir de*.
 
 It lives at `modules/products/shop/components/product-card.tsx` and takes one
-row type, `ProductCardRow`, that **all three** of its callers project — this
-grid, `/`'s Novidades, and the product page's related section (ADR-0045). The
+row type, `ProductCardRow`, that **every** caller projects — this grid, `/`'s
+four Product previews, and the product page's related section (ADR-0045). The
 `A partir de` test is `variantCount > 1`, which is why the row carries a count
 the card never prints: ADR-0033's minimum gives the number and not the label.
 The Cover join is **inner** — a visible Product always has one, because

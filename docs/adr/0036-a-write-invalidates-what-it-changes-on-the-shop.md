@@ -15,8 +15,8 @@ unusable — at the time, "the affected paths" could have been most of the shop.
 
 ADR-0035 shrinks it to something a person can hold. The catalogue routes are
 dynamic, so they have no cache entry to invalidate. What is left holding stale
-catalogue data is exactly **two** paths: `/`, which re-derives its Categorias
-strip and its Novidades row from the catalogue, and `/produto/[slug]`.
+catalogue data is exactly **two** paths: `/`, which re-derives its Categories
+and ranked Product previews, and `/produto/[slug]`.
 
 That is small enough to write down, and a table that fits on a screen is worth
 more than a rule nobody can apply. But a table alone is a list maintained by
@@ -48,7 +48,7 @@ Two kinds of entry, and the difference is deliberate:
 | `products.admin.update` moving a Product between Categories | additionally **`/produto/[slug]`, `'page'`** |
 | `brands.admin.update` (rename) | `/`, **`/produto/[slug]`, `'page'`** |
 | `categories.admin.*` | `/` |
-| Review moderation (approve / reject) | `/produto/<slug>` |
+| Review moderation (approve / reject) | `/`, `/produto/<slug>` |
 | The checkout write (ADR-0039) | `/produto/<slug>`, once per **distinct** Product in the Order |
 
 **Literal paths are the default. The pattern is for genuine fan-out only** — a
@@ -97,3 +97,16 @@ findable by reading the write procedures.
 **Two of these procedures do not exist yet.** The checkout write is #102 and
 Review moderation is unwritten. The table is a contract for when they are built,
 not a description of code.
+
+Review moderation now invalidates `/` because the home page derives *Mais bem
+avaliados* from approved Reviews. Rejection can remove an approved Review from
+that ranking just as approval can add one; the obligation follows the rendered
+result, not the transition's name.
+
+**Narrowed by ADR-0047.** The home page now also derives *Mais vendidos* from
+Orders. Checkout still does not invalidate `/`, because it creates an Order at
+`pending_payment`; an Order-status transition invalidates the literal `/` path
+after commit exactly when it crosses into or out of the counted set (`paid`,
+`processing`, `shipped`, `delivered`). Counted-to-counted fulfilment and
+`pending_payment` to `cancelled` change no home result. The catalogue remains
+dynamic and needs no path invalidation.
