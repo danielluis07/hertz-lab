@@ -51,12 +51,12 @@
 /* The Storefront owns :root; the admin opts out through `.admin` below.
    Values and the rules that govern them: docs/DESIGN.md, ADR-0027. */
 :root {
-  /* Paper and ink are warm, never pure white on pure black. */
-  --background: oklch(0.985 0.004 85);
+  /* Paper and ink are cool, never pure white on pure black. */
+  --background: oklch(0.985 0.004 240);
   --foreground: oklch(0.16 0.005 60);
   /* A card sits on the paper, so it shares it: a border defines the card,
      never a fill. Only floating surfaces lift to white. */
-  --card: oklch(0.985 0.004 85);
+  --card: oklch(0.985 0.004 240);
   --card-foreground: oklch(0.16 0.005 60);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.16 0.005 60);

@@ -12,7 +12,7 @@ markup, it has drifted.
 ## The position
 
 Hertz Lab is an instrument, not a marketplace. The reference is a well-made
-piece of audio hardware: a warm paper ground, near-black ink, hairline rules,
+piece of audio hardware: a cool paper ground, near-black ink, hairline rules,
 one indicator light. Colour comes from the product photography and almost
 nowhere else. Specifications are treated as a feature the shopper came for, not
 as fine print below the fold.
@@ -28,7 +28,7 @@ Defined in `app/globals.css`. The four that carry the direction:
 
 | Token | Value | Is |
 | --- | --- | --- |
-| `--background` | `oklch(0.985 0.004 85)` | Warm paper. Never `#fff`. |
+| `--background` | `oklch(0.985 0.004 240)` | Cool near-white paper. Never `#fff`. |
 | `--foreground` | `oklch(0.16 0.005 60)` | Warm ink. Never `#000`. |
 | `--primary` | `oklch(0.55 0.18 38)` | Signal vermilion. |
 | `--border` | `oklch(0.9 0.004 85)` | Hairline. |
