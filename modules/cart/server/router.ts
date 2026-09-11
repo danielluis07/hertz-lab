@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { cart, cartItem } from "@/db/schema";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { lineAvailability } from "@/modules/cart/availability";
+import { formatUnits, unavailableReason } from "@/modules/cart/format";
 import {
   addToCartSchema,
   removeCartItemSchema,
@@ -21,16 +22,13 @@ import { variantLines } from "@/modules/products/server/lines";
  * The Cart's refusals, beside the throws that raise them (ADR-0013). A write
  * is accepted only when the line it would leave behind is `available` — the
  * same rule that judges a line already held — so a refusal is named by the
- * availability that line would have had.
+ * availability that line would have had, in the sentence `/carrinho` renders
+ * beside a line in that state (`unavailableReason`).
  *
  * Messages only, no `FieldError`: nothing renders these inline, and a field
  * payload would silence the global toast that does render them.
  */
 const LINE_GONE_MESSAGE = "Este item não está mais no seu carrinho.";
-
-function units(count: number): string {
-  return count === 1 ? "1 unidade" : `${count} unidades`;
-}
 
 /**
  * Throw unless `quantity` of this Variant could be bought now. `inCart` is
@@ -42,29 +40,18 @@ function refuseUnlessAvailable(
   { quantity, inCart = 0 }: { quantity: number; inCart?: number },
 ): void {
   const { stockQuantity } = facts;
+  const availability = lineAvailability({ ...facts, quantity });
+  const reason = unavailableReason({ availability, stockQuantity });
 
-  switch (lineAvailability({ ...facts, quantity })) {
-    case "available":
-      return;
-    case "product_unavailable":
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Este produto não está mais à venda.",
-      });
-    case "out_of_stock":
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Esta variação está esgotada.",
-      });
-    case "insufficient_stock":
-      throw new TRPCError({
-        code: "CONFLICT",
-        message:
-          inCart > 0
-            ? `Só temos ${units(stockQuantity)} em estoque, e ${units(inCart)} já ${inCart === 1 ? "está" : "estão"} no seu carrinho.`
-            : `Só temos ${units(stockQuantity)} em estoque.`,
-      });
-  }
+  if (reason === null) return;
+
+  throw new TRPCError({
+    code: "CONFLICT",
+    message:
+      availability === "insufficient_stock" && inCart > 0
+        ? `Só temos ${formatUnits(stockQuantity)} em estoque, e ${formatUnits(inCart)} já ${inCart === 1 ? "está" : "estão"} no seu carrinho.`
+        : reason,
+  });
 }
 
 /**
