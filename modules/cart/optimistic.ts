@@ -1,6 +1,6 @@
 import { isProductOnSale, stockAvailability } from "@/modules/cart/availability";
-import { cartTotals } from "@/modules/cart/totals";
-import type { Cart, CartLine } from "@/modules/cart/types";
+import { lineTotal, withTotals } from "@/modules/cart/totals";
+import type { Cart } from "@/modules/cart/types";
 
 /**
  * What the Cart's optimistic writes do to the cached `cart.get` value, as pure
@@ -14,10 +14,6 @@ import type { Cart, CartLine } from "@/modules/cart/types";
  * must still be the pre-write Cart when it is needed for a rollback.
  */
 
-function withItems(items: CartLine[]): Cart {
-  return { items, ...cartTotals(items) };
-}
-
 /**
  * The Cart with one line set to an absolute quantity, in place — a quantity
  * change never reorders lines. A line whose Product left sale stays
@@ -30,13 +26,13 @@ export function withQuantity(
 ): Cart {
   if (!cart.items.some((line) => line.variantId === variantId)) return cart;
 
-  return withItems(
+  return withTotals(
     cart.items.map((line) =>
       line.variantId === variantId
         ? {
             ...line,
             quantity,
-            lineTotalAmount: line.unitPriceAmount * quantity,
+            lineTotalAmount: lineTotal({ ...line, quantity }),
             availability: isProductOnSale(line.availability)
               ? stockAvailability(line.stockQuantity, quantity)
               : line.availability,
@@ -48,17 +44,21 @@ export function withQuantity(
 
 /** The Cart without one line. */
 export function withoutLine(cart: Cart, variantId: string): Cart {
-  return withItems(cart.items.filter((line) => line.variantId !== variantId));
+  return withTotals(cart.items.filter((line) => line.variantId !== variantId));
 }
 
 /**
- * Roll one failed write back: the line as the snapshot held it, where the
- * snapshot held it, and every **other** line as it is now.
+ * One line as `snapshot` held it, where `snapshot` held it, and every
+ * **other** line as `current` has it.
  *
- * Restoring the whole snapshot would also undo a change to another line made
- * after the snapshot was taken and still waiting on the server — which then
- * flickers back when that write settles. Only the line this write touched is
- * the failed write's to undo.
+ * It is how a failed write rolls back: restoring the whole snapshot would
+ * also undo a change to another line made after the snapshot was taken and
+ * still waiting on the server, which then flickers back when that write
+ * settles. Only the line this write touched is the failed write's to undo.
+ *
+ * It is also how a write queued behind a failed one for the same line is
+ * re-based: that write's snapshot was the failed write's optimistic value,
+ * which the server never held.
  */
 export function restoreLine(
   current: Cart,
@@ -69,7 +69,7 @@ export function restoreLine(
   const restored = snapshot.items[index];
   const others = current.items.filter((line) => line.variantId !== variantId);
 
-  if (!restored) return withItems(others);
+  if (!restored) return withTotals(others);
 
   // After the nearest line that preceded it in the snapshot and is still here;
   // first when none is.
@@ -78,7 +78,7 @@ export function restoreLine(
   );
   const anchor = others.findLastIndex((line) => before.has(line.variantId));
 
-  return withItems([
+  return withTotals([
     ...others.slice(0, anchor + 1),
     restored,
     ...others.slice(anchor + 1),

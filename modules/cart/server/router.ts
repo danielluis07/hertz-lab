@@ -5,10 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cart, cartItem } from "@/db/schema";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
-import {
-  lineAvailability,
-  type CartLineAvailability,
-} from "@/modules/cart/availability";
+import { lineAvailability } from "@/modules/cart/availability";
 import {
   addToCartSchema,
   removeCartItemSchema,
@@ -17,13 +14,14 @@ import {
 import { toCart, type CartLineFacts } from "@/modules/cart/totals";
 import type { Cart } from "@/modules/cart/types";
 import { findLineFacts, lockCart } from "@/modules/cart/server/queries";
+import type { ProductStatus } from "@/modules/products/constants";
 import { variantLines } from "@/modules/products/server/lines";
 
 /**
  * The Cart's refusals, beside the throws that raise them (ADR-0013). A write
- * is accepted only when the line it would leave behind is `available`, so a
- * refusal is named by the availability that line would have had — the same
- * words the Cart shows under a line it already holds.
+ * is accepted only when the line it would leave behind is `available` — the
+ * same rule that judges a line already held — so a refusal is named by the
+ * availability that line would have had.
  *
  * Messages only, no `FieldError`: nothing renders these inline, and a field
  * payload would silence the global toast that does render them.
@@ -34,11 +32,18 @@ function units(count: number): string {
   return count === 1 ? "1 unidade" : `${count} unidades`;
 }
 
+/**
+ * Throw unless `quantity` of this Variant could be bought now. `inCart` is
+ * what an add is adding to, named in the refusal so the shopper can see why
+ * a small add does not fit; an absolute set has nothing to add to.
+ */
 function refuseUnlessAvailable(
-  availability: CartLineAvailability,
-  { stockQuantity, inCart }: { stockQuantity: number; inCart: number },
+  facts: { productStatus: ProductStatus; stockQuantity: number },
+  { quantity, inCart = 0 }: { quantity: number; inCart?: number },
 ): void {
-  switch (availability) {
+  const { stockQuantity } = facts;
+
+  switch (lineAvailability({ ...facts, quantity })) {
     case "available":
       return;
     case "product_unavailable":
@@ -164,14 +169,7 @@ export const cartRouter = createTRPCRouter({
         const inCart = facts.lineQuantity ?? 0;
         const quantity = inCart + input.quantity;
 
-        refuseUnlessAvailable(
-          lineAvailability({
-            productStatus: facts.productStatus,
-            stockQuantity: facts.stockQuantity,
-            quantity,
-          }),
-          { stockQuantity: facts.stockQuantity, inCart },
-        );
+        refuseUnlessAvailable(facts, { quantity, inCart });
 
         // The absolute total just checked, not an increment: the lock means
         // nothing has changed the line since it was read.
@@ -206,14 +204,7 @@ export const cartRouter = createTRPCRouter({
           throw new TRPCError({ code: "NOT_FOUND", message: LINE_GONE_MESSAGE });
         }
 
-        refuseUnlessAvailable(
-          lineAvailability({
-            productStatus: facts.productStatus,
-            stockQuantity: facts.stockQuantity,
-            quantity: input.quantity,
-          }),
-          { stockQuantity: facts.stockQuantity, inCart: 0 },
-        );
+        refuseUnlessAvailable(facts, { quantity: input.quantity });
 
         // `created_at` is untouched, so the line keeps its place.
         await tx

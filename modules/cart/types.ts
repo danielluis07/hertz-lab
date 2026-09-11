@@ -14,7 +14,7 @@ export type CartLine = {
   variantId: string;
   variantName: string;
   productName: string;
-  /** Links to `/produto/<slug>` only while the Product is on sale — see `linksToProduct`. */
+  /** Links to `/produto/<slug>` only while the Product is on sale — see `isProductOnSale`. */
   productSlug: string;
   /** Null when the Product has no Image left, which only an archived one can. */
   coverS3Key: string | null;

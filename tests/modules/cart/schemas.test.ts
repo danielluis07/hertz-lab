@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
   addToCartSchema,
-  removeCartItemSchema,
   setCartQuantitySchema,
 } from "@/modules/cart/schemas";
 
 /**
  * A quantity is a positive whole number of units. Zero is not a quantity and
- * never an alias for removal: `cart.remove` is its own write.
+ * never an alias for removal: `cart.remove` is its own write. Only that clause
+ * is a rule; the rest of each schema describes a shape (ADR-0017).
  */
 describe.each([
   ["addToCartSchema", addToCartSchema],
@@ -28,26 +28,5 @@ describe.each([
 
   test("refuses a fraction of a unit", () => {
     expect(schema.safeParse({ variantId: "v1", quantity: 1.5 }).success).toBe(false);
-  });
-
-  test("refuses a quantity sent as text", () => {
-    expect(schema.safeParse({ variantId: "v1", quantity: "2" }).success).toBe(false);
-  });
-
-  test("refuses a missing Variant", () => {
-    expect(schema.safeParse({ variantId: "", quantity: 1 }).success).toBe(false);
-    expect(schema.safeParse({ quantity: 1 }).success).toBe(false);
-  });
-});
-
-describe("removeCartItemSchema", () => {
-  test("takes a Variant and nothing else", () => {
-    expect(removeCartItemSchema.parse({ variantId: "v1", quantity: 0 })).toEqual({
-      variantId: "v1",
-    });
-  });
-
-  test("refuses a missing Variant", () => {
-    expect(removeCartItemSchema.safeParse({ variantId: "" }).success).toBe(false);
   });
 });

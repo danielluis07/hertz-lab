@@ -43,11 +43,23 @@ export function cartTotals(
   };
 }
 
+/** The Cart value for these lines, in the order given. */
+export function withTotals(items: CartLine[]): Cart {
+  return { items, ...cartTotals(items) };
+}
+
+/** A line's total at the current unit price, whether or not it is available. */
+export function lineTotal(
+  line: Pick<CartLine, "unitPriceAmount" | "quantity">,
+): number {
+  return line.unitPriceAmount * line.quantity;
+}
+
 /** A line priced and judged against the current Catalog. */
 export function toCartLine({ productStatus, ...line }: CartLineFacts): CartLine {
   return {
     ...line,
-    lineTotalAmount: line.unitPriceAmount * line.quantity,
+    lineTotalAmount: lineTotal(line),
     availability: lineAvailability({
       productStatus,
       stockQuantity: line.stockQuantity,
@@ -62,6 +74,5 @@ export function toCartLine({ productStatus, ...line }: CartLineFacts): CartLine 
  * decided here.
  */
 export function toCart(facts: CartLineFacts[]): Cart {
-  const items = facts.map(toCartLine);
-  return { items, ...cartTotals(items) };
+  return withTotals(facts.map(toCartLine));
 }

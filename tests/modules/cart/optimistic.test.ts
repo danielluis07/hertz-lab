@@ -151,3 +151,24 @@ describe("restoreLine", () => {
     expect(restoreLine(current, snapshot, "b")).toEqual(snapshot);
   });
 });
+
+describe("two queued changes to one line, both refused", () => {
+  /**
+   * Stock 5, quantity 2: the shopper sets 6, then 7. The second write
+   * snapshotted the first's optimistic 6, which the server never held, so the
+   * first failure re-bases it on the first's own snapshot — and the second
+   * failure then lands on the quantity the server still has.
+   */
+  test("roll back to the quantity before the first", () => {
+    const confirmed = cart();
+    // What the queued second write snapshotted: the first's optimistic value.
+    const secondSnapshot = withQuantity(confirmed, "a", 6);
+    const shown = withQuantity(secondSnapshot, "a", 7);
+
+    // The first write fails and re-bases the second rather than the cache.
+    const rebased = restoreLine(secondSnapshot, confirmed, "a");
+
+    // The second fails and rolls back from its re-based snapshot.
+    expect(restoreLine(shown, rebased, "a")).toEqual(confirmed);
+  });
+});

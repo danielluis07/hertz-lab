@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { CART_WRITE_SCOPE } from "@/modules/cart/constants";
-import { useOptimisticCart } from "@/modules/cart/hooks/use-optimistic-cart";
+import { useCartCache } from "@/modules/cart/hooks/use-cart-cache";
 import { withoutLine } from "@/modules/cart/optimistic";
 import { useTRPC } from "@/trpc/client";
 
@@ -16,7 +16,7 @@ import { useTRPC } from "@/trpc/client";
  */
 export const useRemoveCartItem = () => {
   const trpc = useTRPC();
-  const cache = useOptimisticCart();
+  const cache = useCartCache();
 
   return useMutation(
     trpc.cart.remove.mutationOptions({
@@ -24,7 +24,7 @@ export const useRemoveCartItem = () => {
       onMutate: ({ variantId }) =>
         cache.apply((cart) => withoutLine(cart, variantId)),
       onError: (_error, { variantId }, context) =>
-        cache.rollback(context?.snapshot, variantId),
+        cache.rollback(context, variantId),
       onSettled: () => cache.settle(),
     }),
   );

@@ -15,14 +15,11 @@ import { isOnSale } from "@/modules/products/status";
  * A deleted Variant has no state here: `cart_item.variant_id` cascades, so
  * the line is gone before anything could read it.
  */
-export const CART_LINE_AVAILABILITIES = [
-  "available",
-  "product_unavailable",
-  "out_of_stock",
-  "insufficient_stock",
-] as const;
-
-export type CartLineAvailability = (typeof CART_LINE_AVAILABILITIES)[number];
+export type CartLineAvailability =
+  | "available"
+  | "product_unavailable"
+  | "out_of_stock"
+  | "insufficient_stock";
 
 export function lineAvailability({
   productStatus,

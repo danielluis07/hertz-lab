@@ -372,7 +372,8 @@ does not exist.
 ## Toasts
 
 `sonner`, added through shadcn, with `<Toaster />` mounted once in
-`app/(admin)/layout.tsx` beside `ConfirmProvider`. `toast()` is importable
+`app/layout.tsx`: the `MutationCache` handler speaks for every route, so its
+renderer sits where every route renders (#111). `toast()` is importable
 anywhere and callable outside React, which is what lets the `MutationCache`
 handler — not a component — raise one.
 
