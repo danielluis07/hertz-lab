@@ -51,6 +51,14 @@ Two kinds of entry, and the difference is deliberate:
 | Review moderation (approve / reject) | `/`, `/produto/<slug>` |
 | The checkout write (ADR-0039) | `/produto/<slug>`, once per **distinct** Product in the Order |
 
+> **Narrowed by ADR-0042: `categories.admin.*` invalidates the `(shop)`
+> layout, not only `/`.** The shop frame reads the root Categories into the
+> header and footer of every route under `app/(shop)/layout.tsx`, so a Category
+> write now changes the five institucional pages and every product page as well
+> as `/`. The write calls `revalidatePath('/(shop)', 'layout')`, which reaches
+> every page beneath that layout, `/` included. The rule above derives it
+> unchanged: the write invalidates what it changes on the shop.
+
 **Literal paths are the default. The pattern is for genuine fan-out only** — a
 Brand rename changes the meta line on every product page of that Brand, and a
 Product changing Category changes the *related Products* section of every other

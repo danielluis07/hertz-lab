@@ -1,5 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { formatUnits, unavailableReason } from "@/modules/cart/format";
+import {
+  formatBadgeCount,
+  formatUnits,
+  unavailableReason,
+} from "@/modules/cart/format";
+
+describe("formatBadgeCount", () => {
+  test("prints a two-digit count as it is", () => {
+    expect(formatBadgeCount(1)).toBe("1");
+    expect(formatBadgeCount(99)).toBe("99");
+  });
+
+  test("caps anything past two digits", () => {
+    expect(formatBadgeCount(100)).toBe("99+");
+    expect(formatBadgeCount(1200)).toBe("99+");
+  });
+});
 
 describe("formatUnits", () => {
   test("singular for exactly one", () => {

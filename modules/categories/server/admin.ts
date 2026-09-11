@@ -13,6 +13,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { category, product } from "@/db/schema";
@@ -136,6 +137,22 @@ async function deleteImageObject(key: string): Promise<void> {
   } catch {
     // Exactly the orphan an abandoned form leaves, and priced the same.
   }
+}
+
+/**
+ * What a committed Category write owes the shop's cache (ADR-0036). Not only
+ * `/`: the shop frame reads the root Categories into the header and footer of
+ * every route under `app/(shop)/layout.tsx` (ADR-0042), and the static ones —
+ * `/` and the five institucional pages — have no time-based revalidation to
+ * catch up on their own (ADR-0031). So the write invalidates the layout,
+ * which reaches every page beneath it.
+ *
+ * Coarse on purpose, every write rather than only one that touches a root:
+ * asking whether a row was or is a root is a read for a render that is lazy
+ * and cheap, on an act an Admin performs rarely.
+ */
+function revalidateShopFrame(): void {
+  revalidatePath("/(shop)", "layout");
 }
 
 /**
@@ -334,7 +351,7 @@ export const adminRouter = createTRPCRouter({
   create: adminProcedure.input(categorySchema).mutation(async ({ input }) => {
     await assertImageUploaded(input.imageS3Key);
 
-    return db.transaction(async (tx) => {
+    const created = await db.transaction(async (tx) => {
       if (input.parentId !== null) {
         const proposed = await findParentCandidate(tx, input.parentId);
 
@@ -368,7 +385,7 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const [created] = await tx
+      const [inserted] = await tx
         .insert(category)
         .values({
           name: input.name,
@@ -379,8 +396,12 @@ export const adminRouter = createTRPCRouter({
         })
         .returning({ id: category.id });
 
-      return { id: created.id };
+      return { id: inserted.id };
     });
+
+    revalidateShopFrame();
+
+    return created;
   }),
 
   /**
@@ -581,6 +602,8 @@ export const adminRouter = createTRPCRouter({
         await deleteImageObject(written.droppedKey);
       }
 
+      revalidateShopFrame();
+
       return { id: written.id };
     }),
 
@@ -686,6 +709,8 @@ export const adminRouter = createTRPCRouter({
       // Committed, so nothing references this key any more, whatever happens
       // next (ADR-0018).
       if (droppedKey !== null) await deleteImageObject(droppedKey);
+
+      revalidateShopFrame();
 
       return { id: input.id };
     }),

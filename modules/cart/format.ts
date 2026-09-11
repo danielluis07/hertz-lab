@@ -12,6 +12,20 @@ export function formatUnits(count: number): string {
   return `${integer.format(count)} ${count === 1 ? "unidade" : "unidades"}`;
 }
 
+/** The largest count the header badge prints before it stops counting. */
+const BADGE_MAX = 99;
+
+/**
+ * The header badge's number: the Cart's `totalQuantity`, capped at two digits
+ * so the badge stays the size of the icon it sits on. Past the cap it reads
+ * `99+`, and the badge's screen-reader text carries the exact count.
+ */
+export function formatBadgeCount(count: number): string {
+  return count > BADGE_MAX
+    ? `${integer.format(BADGE_MAX)}+`
+    : integer.format(count);
+}
+
 /**
  * Why a line cannot be bought right now, in the sentence the line renders
  * beside it — or `null` for an available line. The same sentences the Cart's
