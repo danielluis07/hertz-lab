@@ -25,7 +25,7 @@ Categories, links to the five institucional routes, shared contact facts, the
 wordmark, and copyright. It contains no newsletter, payment-method list, or
 social-media list.
 
-`components/shop/root-categories.ts` wraps
+`modules/categories/shop.ts` wraps
 `caller.categories.shop.roots()` in React `cache()`. The header and footer call
 that function directly, so the render performs one database query without a
 layout prop-drilling the rows. The same procedure returns root Category name,
@@ -105,28 +105,28 @@ A query string describes a view: no matches produce an empty state. A
 array or envelope. Personal collection routes render an empty collection rather
 than a missing resource.
 
-| Route | Rendering | Waiting UI | Missing resource |
-| --- | --- | --- | --- |
-| `/` | static ISR | none | none |
-| `/produtos` | dynamic | `produtos/loading.tsx` | none |
-| `/produtos/[...categoria]` | dynamic | inherited `produtos/loading.tsx` | bad Category is a soft 404 |
-| `/produto/[slug]` | on-demand static ISR | none | unknown, draft, or archived Product is a hard 404 |
-| `/carrinho` | dynamic | page `<Suspense>` | never 404s |
-| `/checkout` | dynamic | page `<Suspense>` | never 404s |
-| `/checkout/[id]` | dynamic | page `<Suspense>` | unknown or foreign Order is a hard 404 |
-| `/sobre` | static | none | none |
-| `/contato` | static | none | none |
-| `/termos-de-uso` | static | none | none |
-| `/politica-de-privacidade` | static | none | none |
-| `/trocas-e-devolucoes` | static | none | none |
-| `/login` | dynamic | shared auth loading boundary | none |
-| `/cadastro` | dynamic | shared auth loading boundary | none |
-| `/minha-conta` | dynamic redirect | none | none |
-| `/minha-conta/perfil` | dynamic | page `<Suspense>` | none |
-| `/minha-conta/enderecos` | dynamic | page `<Suspense>` | none |
-| `/minha-conta/pedidos` | dynamic | segment `loading.tsx` | none |
-| `/minha-conta/pedidos/[id]` | dynamic | segment `loading.tsx` | unknown or foreign Order is a soft 404 |
-| `/minha-conta/favoritos` | dynamic | page `<Suspense>` | none |
+| Route                       | Rendering            | Waiting UI                       | Missing resource                                  |
+| --------------------------- | -------------------- | -------------------------------- | ------------------------------------------------- |
+| `/`                         | static ISR           | none                             | none                                              |
+| `/produtos`                 | dynamic              | `produtos/loading.tsx`           | none                                              |
+| `/produtos/[...categoria]`  | dynamic              | inherited `produtos/loading.tsx` | bad Category is a soft 404                        |
+| `/produto/[slug]`           | on-demand static ISR | none                             | unknown, draft, or archived Product is a hard 404 |
+| `/carrinho`                 | dynamic              | page `<Suspense>`                | never 404s                                        |
+| `/checkout`                 | dynamic              | page `<Suspense>`                | never 404s                                        |
+| `/checkout/[id]`            | dynamic              | page `<Suspense>`                | unknown or foreign Order is a hard 404            |
+| `/sobre`                    | static               | none                             | none                                              |
+| `/contato`                  | static               | none                             | none                                              |
+| `/termos-de-uso`            | static               | none                             | none                                              |
+| `/politica-de-privacidade`  | static               | none                             | none                                              |
+| `/trocas-e-devolucoes`      | static               | none                             | none                                              |
+| `/login`                    | dynamic              | shared auth loading boundary     | none                                              |
+| `/cadastro`                 | dynamic              | shared auth loading boundary     | none                                              |
+| `/minha-conta`              | dynamic redirect     | none                             | none                                              |
+| `/minha-conta/perfil`       | dynamic              | page `<Suspense>`                | none                                              |
+| `/minha-conta/enderecos`    | dynamic              | page `<Suspense>`                | none                                              |
+| `/minha-conta/pedidos`      | dynamic              | segment `loading.tsx`            | none                                              |
+| `/minha-conta/pedidos/[id]` | dynamic              | segment `loading.tsx`            | unknown or foreign Order is a soft 404            |
+| `/minha-conta/favoritos`    | dynamic              | page `<Suspense>`                | none                                              |
 
 ### Catalogue invariants
 

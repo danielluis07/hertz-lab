@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getRootCategories } from "@/components/shop/root-categories";
 import { STORE } from "@/lib/store";
+import { getRootCategories } from "@/modules/categories/shop";
 
 /**
  * The Storefront footer, mounted beside the header by the `(shop)` and

@@ -15,7 +15,7 @@ export const shopRouter = createTRPCRouter({
    * imageS3Key }`, unpaginated: ADR-0022's two-level tree bounds the list.
    *
    * Two surfaces read it: the shop frame's header links and footer column
-   * (`components/shop/root-categories.ts`), and `/`'s Categorias strip, which
+   * (`modules/categories/shop.ts`), and `/`'s Categorias strip, which
    * is what the picture is carried for. The frame ignores it. No children:
    * nothing wants two levels in one payload, and a root Category page's child
    * strip arrives with its own `bySlug` read (ADR-0042).

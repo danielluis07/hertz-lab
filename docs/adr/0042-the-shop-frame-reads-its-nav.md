@@ -10,7 +10,7 @@ Accepted
 
 `components/shop/` is the header and footer every `(shop)` route renders inside,
 and `(account)` too (ADR-0034). Both halves want the same thing: the **root
-Categories**, as flat links in the header and as the footer's *Loja* column.
+Categories**, as flat links in the header and as the footer's _Loja_ column.
 `app/(shop)/layout.tsx` has both components commented out, so nothing about the
 read has ever been settled.
 
@@ -38,7 +38,7 @@ React's `cache()` with a comment explaining why, and leaves `caller` a bare
 queries per render, for real. The ticket's worry was not hypothetical.
 
 **A database read in a layout dynamises nothing.** #86 and #99 measured that a
-*Request-time* read — `headers()`, `cookies()`, `searchParams` — in
+_Request-time_ read — `headers()`, `cookies()`, `searchParams` — in
 `app/(shop)/layout.tsx` takes the non-admin static count from 8 to 1. A Drizzle
 query is not one. The frame may read the catalogue and the seven static routes
 survive, which is the whole reason this decision is available at all.
@@ -66,7 +66,7 @@ frame, so the read would be copied into a second layout, and because it puts a
 data read back into the layout that ADR-0034 just finished emptying.
 
 The symmetry is the point and is worth reading at the path:
-**`components/admin/nav.ts` is a literal array; `components/shop/root-categories.ts`
+**`components/admin/nav.ts` is a literal array; `modules/categories/shop.ts`
 is that same file with a query behind it.** The two frames are one idea, and the
 difference between the files is the difference between a module and a row.
 
@@ -104,12 +104,12 @@ reaches for a dropdown.
 
 ### Where the frame's client leaves live
 
-ADR-0015's test — *anything that owns data or a rule of its own becomes a module
-and is composed into the frame* — decides all three, and it does not decide them
+ADR-0015's test — _anything that owns data or a rule of its own becomes a module
+and is composed into the frame_ — decides all three, and it does not decide them
 the same way:
 
 - **The search input is frame furniture.** ADR-0015's admin search box belongs
-  to `products` *because it queries products*. This one queries nothing: it is a
+  to `products` _because it queries products_. This one queries nothing: it is a
   form that writes a URL, pushing `/produtos?busca=…`. It owns no data and no
   rule, and filing it under `modules/products/` would give that module a
   component that never touches a Product.
@@ -175,15 +175,15 @@ the dynamic ones. There is no per-section error boundary on the shop
 the same answer the shop gives everywhere else.
 
 **`/`'s Categorias strip issues its own read** rather than sharing the frame's
-memoised one, because a *page* importing `components/shop/` would break
+memoised one, because a _page_ importing `components/shop/` would break
 ADR-0015's rule that every importer of a frame folder is a route group layout.
 On a static route the duplicate is paid at revalidation. Paying it is preferred
 to widening the frame's contract.
 
 **The frame's file count is derived, not budgeted.** ADR-0015 says a sixth file
 in `components/admin/` is a smell, and the sentence beside that number is the
-actual test — *the frame splits where the client boundary falls, and nowhere
-else*. The shop frame has three client boundaries where admin has two, so it
+actual test — _the frame splits where the client boundary falls, and nowhere
+else_. The shop frame has three client boundaries where admin has two, so it
 could legitimately have been six files; it is five because the badge belongs to
 `cart`. A future addition is read against the rule, not against admin's count.
 

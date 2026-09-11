@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ShoppingBagIcon } from "lucide-react";
 import { AccountMenu } from "@/components/shop/account-menu";
-import { getRootCategories } from "@/components/shop/root-categories";
+import { getRootCategories } from "@/modules/categories/shop";
 import { SiteSearch } from "@/components/shop/site-search";
 import { buttonVariants } from "@/components/ui/button";
 import { STORE } from "@/lib/store";
