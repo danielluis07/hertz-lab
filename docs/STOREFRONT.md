@@ -128,6 +128,124 @@ than a missing resource.
 | `/minha-conta/pedidos/[id]` | dynamic              | segment `loading.tsx`            | unknown or foreign Order is a soft 404            |
 | `/minha-conta/favoritos`    | dynamic              | page `<Suspense>`                | none                                              |
 
+### Metadata and SEO
+
+Metadata is cross-cutting: the root layout owns what is true of the whole
+deployment, and every route states only what is true of itself. A segment
+exports either a static `metadata` object or `generateMetadata`, never both —
+Next rejects the pair in one file. `generateMetadata` is used only where a title,
+description, canonical, or `robots` value depends on a read or on the query
+string: `/produto/[slug]`, `/produtos`, and `/produtos/[...categoria]`. Every
+other route exports a static object.
+
+**The root layout.** It sets `metadataBase` from `NEXT_PUBLIC_APP_URL`, the
+`Hertz Lab` title default, and the `%s | Hertz Lab` template. `metadataBase` is
+mandatory rather than convenient: a relative URL in any metadata field without
+it fails the build. `/` is the single route that uses `title.absolute`, because
+a home page leads with the store name and every other route trails it. No route
+uses `absolute` for any other reason.
+
+There is deliberately no `viewport` export and no `themeColor`. Next emits a
+correct default viewport; there is no installable manifest; and `DESIGN.md`
+ships the Storefront light-only, so a `themeColor` would copy a design token
+into a metadata file, which is the one place its drift would go unnoticed.
+
+**Titles and descriptions.** Static routes hold their own Brazilian Portuguese
+strings. A derived route reads them from the resource: `title` is
+`product.name` or `category.name`, riding the root template. A Product
+description is `product.description`, whitespace-collapsed and cut to roughly
+155 characters on a word boundary by a helper, never in a component. A Category
+description is `category.description` when present and a templated pt-BR
+sentence built from the name when it is null. No table carries a metadata
+column; adding one is a schema change and out of scope.
+
+`generateMetadata` and the page body are two separate calls, and `caller` is not
+memoised. Every derived route therefore reads through a React `cache()`-wrapped
+function shared by both, or it issues its query twice per request.
+
+**Canonical URLs.** A path is a resource and a query string is a view
+(ADR-0041), so a canonical URL is a pathname plus `pagina` (ADR-0052), and every other
+catalogue parameter is dropped: `/produtos?marca=jbl&pagina=2` canonicalises to
+`/produtos?pagina=2`. `pagina=1` is dropped as well, and the pagination control
+links page one as the bare pathname, so one page of Products has one URL.
+Category paths are self-canonical unchanged, because ADR-0043 already made a
+Category path a canonical subtree and the route 404s a path whose parent does
+not match. There are no `alternates.languages`: the store is pt-BR only, and an
+`hreflang` set of one is noise.
+
+**Index policy.** Indexable: `/`, `/produtos`, every Category path, every
+active `/produto/[slug]`, and the five institucional routes. `noindex, follow`:
+any catalogue view carrying a filter or search parameter, `pagina` excepted.
+`noindex, nofollow`: `/carrinho`, `/checkout`, `/checkout/[id]`, `/login`,
+`/cadastro`, and all six account routes.
+
+An empty view gets no special case. A filtered view that matches nothing is
+already `noindex` for carrying the filter; a bare Category path with no active
+Products stays indexable, because it is a real resource that will fill, and
+deciding otherwise would make metadata wait on a Product count it does not
+otherwise need. Because the `robots` field is a nested object, the last segment
+to define it replaces the whole thing rather than merging — a route that sets
+`robots` states every flag it wants.
+
+**Open Graph.** A committed `app/opengraph-image.png` at 1200×630 with its
+`opengraph-image.alt.txt` serves every route through the file convention, which
+the object-merge rule does not touch. `/produto/[slug]` is the one exception: it
+sets `openGraph.images` to the Cover's CDN URL through `s3KeyToUrl`, with the
+Image's `altText` as the alt. It is the Cover alone, because a share card shows
+one image and the Cover is the one chosen to stand for the Product.
+
+Any route that sets `openGraph` spreads the shared base object first. Nested
+metadata objects are replaced, not merged, so a page that sets `openGraph.images`
+alone silently drops the deployment's `siteName`, `locale`, and `type`. This
+failure is invisible in the rendered page, which is why the shared object exists.
+
+**Structured data.** Next has no JSON-LD support, so a Server Component renders
+a `<script type="application/ld+json">` through one shared helper. ADR-0053
+governs what a graph may claim. Emitted:
+`Product` on `/produto/[slug]`, `BreadcrumbList` on `/produto/[slug]` and
+`/produtos/[...categoria]`, and `Organization` plus `WebSite` on `/`.
+`Organization` draws its facts from `lib/store.ts` and its `logo` from the
+committed square mark in `public/`.
+
+The `Product` graph carries `name`, `description`, every Image in the page
+projection with the Cover first, `brand`, and an `AggregateOffer` with
+`lowPrice`, `highPrice`, `priceCurrency: "BRL"`, and an availability derived
+from summed Variant stock; a single-Variant Product emits a plain `Offer` with
+its `sku`. `aggregateRating` is emitted only when `ratingCount` is greater than
+zero. Individual `Review` objects are not emitted: the island pages in more
+approved Reviews than any fixed graph would name, so the markup would stop
+matching the page after one interaction, and `aggregateRating` says the same
+thing without drifting.
+
+Every fact in a graph comes from the same `cache()`d read the route renders
+from. A second query for structured data can disagree with the visible page,
+which is the failure this rule exists to prevent. There is no `SearchAction`.
+
+**`sitemap.ts` and `robots.ts`.** `app/sitemap.ts` lists `/`, `/produtos`, the
+five institucional paths, every Category's canonical path, and every active
+Product at `/produto/<slug>` with `lastModified` from `product.updatedAt`.
+Nothing else appears: a noindex route has no place in a sitemap. `app/robots.ts`
+allows all agents, disallows `/carrinho`, `/checkout`, `/minha-conta`, `/login`,
+`/cadastro`, and `/api`, and points at the sitemap. It does not disallow
+catalogue query strings, because a `noindex, follow` view has to be crawled for
+its links to be followed.
+
+Both are Route Handlers, cached by default unless they read a Request-time API.
+Both set `revalidate` to one hour rather than joining the invalidation set
+ADR-0036 and ADR-0047 maintain: an hour of latency in a crawler artifact costs
+nothing, while a `revalidatePath` call in every Product and Category write is a
+list the next write has to remember. Their reads are shop procedures returning
+slug and `updatedAt` unpaginated; the `server/` import rule in `MODULES.md`
+governs a Route Handler exactly as it governs a page. Google's 50,000-URL limit
+is far away, and `generateSitemaps` is the split if it ever is not.
+
+**Where it lives.** `lib/seo.ts` holds what no module owns: `metadataBase`, the
+shared Open Graph base, the `noindex` presets, and the JSON-LD render helper.
+Resource-shaped builders live with their module — the catalogue canonical and
+`robots` derivation in `modules/products/shop/`, which already owns the
+parameter names they need, and the Category builders in
+`modules/categories/shop/`.
+
 ### Catalogue invariants
 
 Storefront sections are derived queries. There is no `featured` flag, banner
@@ -197,12 +315,15 @@ control trees.
 
 ### `/produtos/[...categoria]`
 
-**Structure.** The Category heading, optional description, and child Category
-links with optional decorative pictures precede the same `Catalog` used by
-`/produtos`. A Category picture is not part of its own route. A root Category
-includes itself and its children in the Product narrowing; a child has no
-children and naturally narrows to itself. There is no Category filter because
-the path is the fixed narrowing.
+**Structure.** A server breadcrumb trail, then the Category heading, optional
+description, and child Category links with optional decorative pictures, then
+the same `Catalog` used by `/produtos`. The trail is
+`Início › Produtos › <root> › <child>`, collapsing a segment when the Category
+is a root, and it is the visible counterpart of the `BreadcrumbList` this route
+emits — neither exists without the other. A Category picture is not part of its
+own route. A root Category includes itself and its children in the Product
+narrowing; a child has no children and naturally narrows to itself. There is no
+Category filter because the path is the fixed narrowing.
 
 **Data flow.** The page rejects more than two path segments before reading.
 `categories.shop.bySlug({ slug: lastSegment })` returns the Category, parent
@@ -216,8 +337,14 @@ to the client controls; Category and Product markup remain server-rendered.
 
 ### `/produto/[slug]`
 
-**Structure.** Five blocks, in this order: purchase area, Specifications,
-Description, Reviews, and Related Products. Specifications and Related Products
+**Structure.** A server breadcrumb trail, then five blocks, in this order:
+purchase area, Specifications, Description, Reviews, and Related Products. The
+trail is `Início › Produtos › <root> › <child> › <Product>`, collapsing a
+segment when the Product's Category is a root. It is the visible counterpart
+of the `BreadcrumbList` this route emits, and it is also the only upward path
+from a Product to its Category: the header carries flat root links with no
+dropdown (ADR-0042), so a shopper landing here from search otherwise cannot
+reach the Category the Product belongs to. Specifications and Related Products
 are omitted when empty; Reviews remains so an eligible shopper can author the
 first Review. The purchase area is one client entry point composing Gallery and
 Buy panel because selected Variant, selected Image, and quantity are one state.
@@ -233,8 +360,10 @@ selectable and saveable but cannot be added to Cart. There is no Variant query
 parameter.
 
 **Data flow.** `products.shop.bySlug({ slug })` is a `baseProcedure` returning
-the page projection or `null`. After existence is established, the page starts
-`reviews.shop.list({ productId })` and
+the page projection or `null`. The projection includes the Product's Category as
+`{ name, slug, parentSlug }` — the trail and the `BreadcrumbList` need the names
+and the canonical path, which `categoryId` alone cannot build. After existence
+is established, the page starts `reviews.shop.list({ productId })` and
 `products.shop.related({ productId, categoryId })` together. All three use
 `caller`. The route exports `generateStaticParams() { return [] }`, reads no
 Request-time API, and caches each active slug after its first request.

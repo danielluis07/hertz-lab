@@ -75,3 +75,8 @@ they overlap, the higher number carries the current rule.
 
 - [0021](0021-square-images-and-the-browser-that-guards-them.md) — Photographs are square, and only the browser knows it.
 - [0028](0028-the-hero-is-the-one-image-that-is-not-square.md) — The home hero is a committed asset, and the one image that is not square.
+
+## Metadata and SEO — see `docs/STOREFRONT.md`
+
+- [0052](0052-a-canonical-url-is-a-pathname-and-a-page.md) — A canonical URL is a pathname and a page; a filter is not.
+- [0053](0053-structured-data-describes-what-the-page-shows.md) — Structured data describes what the page shows.
