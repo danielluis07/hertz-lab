@@ -91,7 +91,8 @@ Component rendered data that changed.
 `<Suspense>` provides streaming, not a static shell. Static routes cache the
 rendered route through ISR and have no time-based revalidation floor. Admin and
 commerce writes invalidate `/` and literal `/produto/<slug>` paths according to
-ADR-0036 and ADR-0047.
+ADR-0036 and ADR-0047. A Category write invalidates the whole `(shop)` layout,
+because the frame renders the root Categories on every route beneath it.
 
 A dynamic segment with prefetched data uses a page-owned `<Suspense>` boundary.
 A dynamic segment that awaits all of its data owns `loading.tsx`. A static
