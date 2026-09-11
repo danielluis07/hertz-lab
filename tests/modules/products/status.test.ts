@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PRODUCT_STATUSES } from "@/modules/products/constants";
 import {
   isArchivable,
+  isOnSale,
   isPublishable,
   isPublishableStatus,
 } from "@/modules/products/status";
@@ -80,5 +81,18 @@ describe("the two rules together", () => {
 
     expect(isArchivable("draft")).toBe(true);
     expect(isArchivable("active")).toBe(true);
+  });
+});
+
+/**
+ * Only an active Product is on sale (`CONTEXT.md`) — the pure twin of the
+ * shop's `visibleProduct` clause, which a Cart line reads to explain why it
+ * cannot be bought.
+ */
+describe("isOnSale", () => {
+  test("admits only active", () => {
+    expect(isOnSale("active")).toBe(true);
+    expect(isOnSale("draft")).toBe(false);
+    expect(isOnSale("archived")).toBe(false);
   });
 });

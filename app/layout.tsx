@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { inter, plexMono, plexSans } from "@/fonts";
 import { TRPCReactProvider } from "@/trpc/client";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: {
@@ -28,6 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <TRPCReactProvider>
           <TooltipProvider>{children}</TooltipProvider>
         </TRPCReactProvider>
+        {/* The one renderer for the one global mutation handler
+            (`trpc/query-client.ts`, ADR-0013), which already speaks for
+            every route — so it is mounted where every route renders. */}
+        <Toaster />
       </body>
     </html>
   );

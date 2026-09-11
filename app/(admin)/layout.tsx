@@ -2,7 +2,6 @@ import { AdminHeader } from "@/components/admin/admin-header";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { Toaster } from "@/components/ui/sonner";
 
 // The `admin` class is this route group's opt-out from the Storefront tokens:
 // globals.css hoists the stock shadcn palette and Inter to the root whenever it
@@ -13,7 +12,6 @@ import { Toaster } from "@/components/ui/sonner";
 export default function AdminLayout({ children }: LayoutProps<"/">) {
   return (
     <ConfirmProvider>
-      <Toaster />
       <SidebarProvider className="admin">
         <AdminSidebar />
         <SidebarInset>
