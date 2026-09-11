@@ -3,9 +3,9 @@ import type { UserRole } from "@/lib/auth-client";
 /**
  * Where a User lands the moment Better Auth hands back a session. An Admin
  * administers the store and never shops (`CONTEXT.md`), so the two roles have
- * different front doors.
+ * different front doors. The shop's `Sair` lands on a `user`'s (ADR-0042).
  */
-const ROLE_HOME: Record<UserRole, string> = {
+export const ROLE_HOME: Record<UserRole, string> = {
   admin: "/admin",
   user: "/",
 };
