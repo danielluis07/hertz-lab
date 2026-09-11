@@ -84,3 +84,50 @@ export function restoreLine(
     ...others.slice(anchor + 1),
   ]);
 }
+
+/**
+ * A Cart write still waiting on the server. `snapshot` is the Cart it painted
+ * over; a write that paints nothing — an add — has none.
+ */
+export type QueuedWrite = {
+  variantId: string | undefined;
+  snapshot: Cart | undefined;
+};
+
+/**
+ * Roll back one failed optimistic write, given the Cart writes queued behind
+ * it in the order they were fired.
+ *
+ * Every write snapshots the cache its predecessor painted, so only the
+ * **next** write to the same line took its snapshot from the failed write's
+ * value, which the server never held. That one snapshot is re-based and
+ * returned for the caller to store; the cache keeps showing the queued write,
+ * which is the shopper's latest intent. Writes further along snapshotted their
+ * own predecessors, whose outcome is not yet known, and are left alone. With
+ * nothing queued on the line, the line goes back as the failed write's
+ * snapshot held it.
+ *
+ * `rebased.index` is the re-based write's position in `queuedAfter`.
+ */
+export function rollBackWrite(
+  current: Cart,
+  failed: { variantId: string; snapshot: Cart },
+  queuedAfter: readonly QueuedWrite[],
+): { cart: Cart; rebased?: { index: number; snapshot: Cart } } {
+  const index = queuedAfter.findIndex(
+    (write) => write.snapshot && write.variantId === failed.variantId,
+  );
+  const next = queuedAfter[index]?.snapshot;
+
+  if (!next) {
+    return { cart: restoreLine(current, failed.snapshot, failed.variantId) };
+  }
+
+  return {
+    cart: current,
+    rebased: {
+      index,
+      snapshot: restoreLine(next, failed.snapshot, failed.variantId),
+    },
+  };
+}

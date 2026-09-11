@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { restoreLine } from "@/modules/cart/optimistic";
+import { rollBackWrite } from "@/modules/cart/optimistic";
 import type { Cart } from "@/modules/cart/types";
 import { useTRPC } from "@/trpc/client";
 
@@ -52,41 +52,37 @@ export const useCartCache = () => {
     },
 
     /**
-     * For `onError`: undo this write on the one line it touched. The failure's
-     * toast is the global `MutationCache`'s (ADR-0013).
-     *
-     * When a later write to the **same** line is queued, the cache is left
-     * showing that write — it is the shopper's latest intent, and restoring
-     * under it would flash a value they already moved past. That write's
-     * snapshot is re-based instead, because it was taken from this write's
-     * optimistic value, which the server never held. With nothing queued
-     * behind it, the line goes back as this write's snapshot held it, and
-     * other lines' in-flight changes stay.
+     * For `onError`: undo this write on the one line it touched, leaving
+     * other lines' in-flight changes alone — or, when a later write to the
+     * same line is queued, re-base that write instead (`rollBackWrite`). The
+     * failure's toast is the global `MutationCache`'s (ADR-0013).
      */
     rollback: (context: CartWriteContext | undefined, variantId: string) => {
       const snapshot = context?.snapshot;
       if (!snapshot) return;
 
-      const queuedOnLine = pendingWrites().filter(
-        (write) =>
-          write.context !== context &&
-          write.context?.snapshot &&
-          write.variables?.variantId === variantId,
+      // Writes run one at a time in fire order, so every other pending Cart
+      // write was fired after this one.
+      const queuedAfter = pendingWrites().filter(
+        (write) => write.context !== context,
+      );
+      const current = queryClient.getQueryData(queryKey) ?? snapshot;
+
+      const { cart, rebased } = rollBackWrite(
+        current,
+        { variantId, snapshot },
+        queuedAfter.map((write) => ({
+          variantId: write.variables?.variantId,
+          snapshot: write.context?.snapshot,
+        })),
       );
 
-      for (const { context: queued } of queuedOnLine) {
-        // Mutating the queued write's own context object is deliberate: it is
-        // the value TanStack will hand to that write's `onError`.
-        if (queued?.snapshot) {
-          queued.snapshot = restoreLine(queued.snapshot, snapshot, variantId);
-        }
-      }
+      const next = rebased && queuedAfter[rebased.index]?.context;
+      // Mutating the queued write's own context object is deliberate: it is
+      // the value TanStack will hand to that write's `onError`.
+      if (rebased && next) next.snapshot = rebased.snapshot;
 
-      if (queuedOnLine.length > 0) return;
-
-      queryClient.setQueryData(queryKey, (current) =>
-        current ? restoreLine(current, snapshot, variantId) : snapshot,
-      );
+      queryClient.setQueryData(queryKey, cart);
     },
 
     /**

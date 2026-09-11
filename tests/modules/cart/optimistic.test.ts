@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   restoreLine,
+  rollBackWrite,
   withoutLine,
   withQuantity,
 } from "@/modules/cart/optimistic";
 import { toCart, type CartLineFacts } from "@/modules/cart/totals";
+import type { Cart } from "@/modules/cart/types";
 
 const facts = (
   variantId: string,
@@ -152,23 +154,93 @@ describe("restoreLine", () => {
   });
 });
 
-describe("two queued changes to one line, both refused", () => {
+/**
+ * A queue of writes to line `a` (stock 5, quantity 2), each fired against the
+ * cache the one before it painted — the way the hooks fire them. Returns the
+ * cache as painted and the queue, each write holding the snapshot it took.
+ */
+function fire(quantities: number[]) {
+  let shown = cart();
+  const queue = quantities.map((quantity) => {
+    const write = { variantId: "a", snapshot: shown };
+    shown = withQuantity(shown, "a", quantity);
+    return write;
+  });
+  return { shown, queue };
+}
+
+/** Line `a`'s quantity in a Cart. */
+const quantityOfA = (value: Cart) =>
+  value.items.find((line) => line.variantId === "a")?.quantity;
+
+describe("rollBackWrite", () => {
+  test("puts the line back when nothing is queued behind the write", () => {
+    const { shown, queue } = fire([6]);
+
+    const { cart: after, rebased } = rollBackWrite(shown, queue[0]!, []);
+
+    expect(after).toEqual(cart());
+    expect(rebased).toBeUndefined();
+  });
+
+  test("leaves the cache on a queued write to the same line and re-bases it", () => {
+    const { shown, queue } = fire([6, 7]);
+
+    const { cart: after, rebased } = rollBackWrite(shown, queue[0]!, queue.slice(1));
+
+    // The shopper's latest intent stays on screen.
+    expect(after).toBe(shown);
+    // The queued write took the refused 6 as its snapshot; it now holds 2.
+    expect(rebased?.index).toBe(0);
+    expect(quantityOfA(rebased!.snapshot)).toBe(2);
+  });
+
+  test("ignores a queued write to another line", () => {
+    const { shown, queue } = fire([6]);
+    const other = { variantId: "b", snapshot: shown };
+
+    const { cart: after, rebased } = rollBackWrite(shown, queue[0]!, [other]);
+
+    expect(quantityOfA(after)).toBe(2);
+    expect(rebased).toBeUndefined();
+  });
+
+  test("skips a queued write that painted nothing, such as an add", () => {
+    const { shown, queue } = fire([6, 7]);
+    const add = { variantId: "a", snapshot: undefined };
+
+    const { rebased } = rollBackWrite(shown, queue[0]!, [add, queue[1]!]);
+
+    expect(rebased?.index).toBe(1);
+  });
+
+  test("two refused changes land on the quantity before the first", () => {
+    const { shown, queue } = fire([6, 7]);
+    const [first, second] = queue;
+
+    const afterFirst = rollBackWrite(shown, first!, [second!]);
+    second!.snapshot = afterFirst.rebased!.snapshot;
+    const afterSecond = rollBackWrite(afterFirst.cart, second!, []);
+
+    expect(afterSecond.cart).toEqual(cart());
+  });
+
   /**
-   * Stock 5, quantity 2: the shopper sets 6, then 7. The second write
-   * snapshotted the first's optimistic 6, which the server never held, so the
-   * first failure re-bases it on the first's own snapshot — and the second
-   * failure then lands on the quantity the server still has.
+   * 6 is refused, 4 is accepted, 7 is refused. Only 4 took its snapshot from
+   * the refused 6; 7 took its from 4, which the server now holds — so 7's
+   * rollback must land on 4, not on the 2 before the whole run.
    */
-  test("roll back to the quantity before the first", () => {
-    const confirmed = cart();
-    // What the queued second write snapshotted: the first's optimistic value.
-    const secondSnapshot = withQuantity(confirmed, "a", 6);
-    const shown = withQuantity(secondSnapshot, "a", 7);
+  test("re-bases only the next write to the line, not every one after it", () => {
+    const { shown, queue } = fire([6, 4, 7]);
+    const [six, four, seven] = queue;
 
-    // The first write fails and re-bases the second rather than the cache.
-    const rebased = restoreLine(secondSnapshot, confirmed, "a");
+    const afterSix = rollBackWrite(shown, six!, [four!, seven!]);
+    expect(afterSix.rebased?.index).toBe(0);
+    four!.snapshot = afterSix.rebased!.snapshot;
 
-    // The second fails and rolls back from its re-based snapshot.
-    expect(restoreLine(shown, rebased, "a")).toEqual(confirmed);
+    // 4 succeeds: it settles out of the queue and touches nothing.
+    const afterSeven = rollBackWrite(afterSix.cart, seven!, []);
+
+    expect(quantityOfA(afterSeven.cart)).toBe(4);
   });
 });
