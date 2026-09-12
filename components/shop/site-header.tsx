@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ShoppingBagIcon } from "lucide-react";
 import { AccountMenu } from "@/components/shop/account-menu";
+import { SiteBrand } from "@/components/shop/site-brand";
 import { getRootCategories } from "@/modules/categories/shop";
 import { SiteSearch } from "@/components/shop/site-search";
 import { buttonVariants } from "@/components/ui/button";
-import { STORE } from "@/lib/store";
 import { CartBadge } from "@/modules/cart/components/cart-badge";
 
 /**
@@ -13,7 +13,7 @@ import { CartBadge } from "@/modules/cart/components/cart-badge";
  * three leaves that need the browser — search, the Cart count, the account
  * menu — cross the boundary on their own (ADR-0015, ADR-0042).
  *
- * Two rows. The top one is the instrument's face: wordmark, search, and the
+ * Two rows. The top one is the instrument's face: brand lockup, search, and the
  * two per-visitor controls, whose slots are fixed so nothing shifts when a
  * session resolves. On a phone the search drops to a full-width line of its
  * own. The second row is the catalogue's nav — `Produtos`, then every root
@@ -31,11 +31,7 @@ export async function SiteHeader() {
   return (
     <header className="border-b">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 md:h-16 md:flex-nowrap md:py-0">
-        <Link
-          href="/"
-          className="text-xl font-medium tracking-tight whitespace-nowrap">
-          {STORE.name}
-        </Link>
+        <SiteBrand className="text-xl font-medium tracking-tight" />
 
         <SiteSearch className="order-last w-full md:order-none md:ml-auto md:w-72 lg:w-96" />
 

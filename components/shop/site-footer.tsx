@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteBrand } from "@/components/shop/site-brand";
 import { STORE } from "@/lib/store";
 import { getRootCategories } from "@/modules/categories/shop";
 
@@ -9,7 +10,7 @@ import { getRootCategories } from "@/modules/categories/shop";
  * Three columns and a signature line (`docs/STOREFRONT.md`): _Loja_, from the
  * same root Categories the header links — the same memoised read, so one
  * query serves both — the five institucional pages, the store's contact
- * facts from `lib/store.ts`, then the wordmark and copyright. Nothing else:
+ * facts from `lib/store.ts`, then the brand lockup and copyright. Nothing else:
  * no newsletter, no payment-method list, no social links.
  *
  * The year is the one rendered when the route was, which on a static route is
@@ -93,9 +94,7 @@ export async function SiteFooter() {
 
       <div className="border-t">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-baseline justify-between gap-x-6 gap-y-2 px-6 py-6">
-          <Link href="/" className="text-base font-medium">
-            {STORE.name}
-          </Link>
+          <SiteBrand className="text-base font-medium" />
           <p className="text-muted-foreground text-xs">
             © {new Date().getFullYear()} {STORE.name}. Todos os direitos
             reservados.

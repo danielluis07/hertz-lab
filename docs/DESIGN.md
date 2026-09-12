@@ -172,6 +172,6 @@ left undone.
 ## What this file does not decide
 
 Component design. The frame (`components/shop/` — header, footer, nav, cart
-affordance) is a design problem of its own and is not settled here. Neither is
-the logo: **Hertz Lab is a wordmark set in Plex Sans** until there is a reason
-for it not to be.
+affordance) is a design problem of its own and is not settled here. The brand
+lockup pairs the approved waveform mark with a **Hertz Lab** wordmark set in
+Plex Sans; the mark stays monochrome and is used on light surfaces.
