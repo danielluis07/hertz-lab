@@ -7,8 +7,10 @@ import {
   desc,
   eq,
   gte,
+  gt,
   inArray,
   lte,
+  notInArray,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -17,10 +19,16 @@ import { db } from "@/db";
 import { brand, product, productImage, productVariant } from "@/db/schema";
 import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { soldUnitsByVariant } from "@/modules/orders/server/sales";
-import { CATALOG_PER_PAGE } from "@/modules/products/shop/constants";
 import {
+  CATALOG_PER_PAGE,
+  HOME_PRODUCT_LIMIT,
+} from "@/modules/products/shop/constants";
+import {
+  bestSellersInputSchema,
   CATALOG_SORTS,
   catalogListInputSchema,
+  newestInputSchema,
+  topRatedInputSchema,
   type CatalogSortBy,
 } from "@/modules/products/shop/schemas";
 import type { ProductCardRow } from "@/modules/products/shop/types";
@@ -115,11 +123,38 @@ const productSales = (() => {
  * Brand key is `notNull` with `restrict`, every Product has a Variant, and a
  * visible Product always has a Cover (ADR-0045).
  */
-function fromCatalog<TQuery extends PgSelect>(query: TQuery) {
+function fromCardRows<TQuery extends PgSelect>(query: TQuery) {
   return query
     .innerJoin(brand, eq(brand.id, product.brandId))
     .innerJoin(cover, eq(cover.productId, product.id))
     .innerJoin(productVariant, eq(productVariant.productId, product.id));
+}
+
+/** The exact shared projection consumed by every Product card surface. */
+const productCardSelection = {
+  id: product.id,
+  slug: product.slug,
+  name: product.name,
+  brandName: brand.name,
+  coverS3Key: cover.s3Key,
+  coverAltText: cover.altText,
+  priceAmount,
+  compareAtPriceAmount,
+  variantCount,
+};
+
+/** The grouping required by the shared card projection's aggregate fields. */
+const PRODUCT_CARD_GROUP = [
+  product.id,
+  brand.id,
+  cover.s3Key,
+  cover.altText,
+] as const;
+
+function excludeProducts(productIds: string[]): SQL | undefined {
+  return productIds.length > 0
+    ? notInArray(product.id, productIds)
+    : undefined;
 }
 
 /** The meaningful tie on every ranking prefers the newer Product; the id makes the order total. */
@@ -170,6 +205,96 @@ function catalogOrder(
 
 export const shopRouter = createTRPCRouter({
   /**
+   * Active Products whose price-driving Variant carries a real saving.
+   * Relative reduction ranks before recency and stable Product identity.
+   */
+  promotions: baseProcedure.query(async () => {
+    const rows = await fromCardRows(
+      db.select(productCardSelection).from(product).$dynamic(),
+    )
+      .where(visibleProduct)
+      .groupBy(...PRODUCT_CARD_GROUP)
+      .having(gt(compareAtPriceAmount, priceAmount))
+      .orderBy(desc(discount), ...NEWEST_THEN_ID)
+      .limit(HOME_PRODUCT_LIMIT);
+
+    const items: ProductCardRow[] = rows;
+    return items;
+  }),
+
+  /**
+   * Active Products with positive lifetime sold units. The Product aggregate
+   * is complete before the Cover and Variant joins used by the card row.
+   */
+  bestSellers: baseProcedure
+    .input(bestSellersInputSchema)
+    .query(async ({ input }) => {
+      const rows = await fromCardRows(
+        db.select(productCardSelection).from(product).$dynamic(),
+      )
+        .innerJoin(productSales, eq(productSales.productId, product.id))
+        .where(
+          and(
+            visibleProduct,
+            excludeProducts(input.excludeProductIds),
+          ),
+        )
+        .groupBy(...PRODUCT_CARD_GROUP, productSales.unitsSold)
+        .orderBy(desc(productSales.unitsSold), ...NEWEST_THEN_ID)
+        .limit(HOME_PRODUCT_LIMIT);
+
+      const items: ProductCardRow[] = rows;
+      return items;
+    }),
+
+  /** Active Products by recency, excluding every earlier preview first. */
+  newest: baseProcedure
+    .input(newestInputSchema)
+    .query(async ({ input }) => {
+      const rows = await fromCardRows(
+        db.select(productCardSelection).from(product).$dynamic(),
+      )
+        .where(
+          and(
+            visibleProduct,
+            excludeProducts(input.excludeProductIds),
+          ),
+        )
+        .groupBy(...PRODUCT_CARD_GROUP)
+        .orderBy(...NEWEST_THEN_ID)
+        .limit(HOME_PRODUCT_LIMIT);
+
+      const items: ProductCardRow[] = rows;
+      return items;
+    }),
+
+  /** Approved-review Products by rating, count, recency and stable identity. */
+  topRated: baseProcedure
+    .input(topRatedInputSchema)
+    .query(async ({ input }) => {
+      const rows = await fromCardRows(
+        db.select(productCardSelection).from(product).$dynamic(),
+      )
+        .where(
+          and(
+            visibleProduct,
+            gt(product.ratingCount, 0),
+            excludeProducts(input.excludeProductIds),
+          ),
+        )
+        .groupBy(...PRODUCT_CARD_GROUP)
+        .orderBy(
+          desc(product.ratingAverage),
+          desc(product.ratingCount),
+          ...NEWEST_THEN_ID,
+        )
+        .limit(HOME_PRODUCT_LIMIT);
+
+      const items: ProductCardRow[] = rows;
+      return items;
+    }),
+
+  /**
    * The catalogue: visible Products as `ProductCardRow`s (ADR-0045), one page
    * of `CATALOG_PER_PAGE` at a time, with the `total` `PaginationNav` needs.
    *
@@ -218,18 +343,9 @@ export const shopRouter = createTRPCRouter({
       const { sortBy, sortOrder } = CATALOG_SORTS[input.sort];
       const bySales = sortBy === "unitsSold";
 
-      let cards = fromCatalog(
+      let cards = fromCardRows(
         db
-          .select({
-            slug: product.slug,
-            name: product.name,
-            brandName: brand.name,
-            coverS3Key: cover.s3Key,
-            coverAltText: cover.altText,
-            priceAmount,
-            compareAtPriceAmount,
-            variantCount,
-          })
+          .select(productCardSelection)
           .from(product)
           .$dynamic(),
       );
@@ -246,10 +362,7 @@ export const shopRouter = createTRPCRouter({
       const page = cards
         .where(where)
         .groupBy(
-          product.id,
-          brand.id,
-          cover.s3Key,
-          cover.altText,
+          ...PRODUCT_CARD_GROUP,
           ...(bySales ? [productSales.unitsSold] : []),
         )
         .having(having)
@@ -261,7 +374,7 @@ export const shopRouter = createTRPCRouter({
 
       // The same joins, predicates and grouping as the page. The sales join is
       // absent because a left join cannot change the set being counted.
-      const matching = fromCatalog(
+      const matching = fromCardRows(
         db.select({ id: product.id }).from(product).$dynamic(),
       )
         .where(where)

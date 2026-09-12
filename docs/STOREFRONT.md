@@ -136,7 +136,7 @@ static exception; ADR-0028 and `DESIGN.md` own its asset and composition.
 
 Only active Products are public. An archived Product is a 404, while an active
 out-of-stock Product remains visible. Every card read projects the same
-`ProductCardRow`: Product slug and name, Brand name, Cover key and alt text,
+`ProductCardRow`: Product id, slug and name, Brand name, Cover key and alt text,
 lowest Variant price and its compare-at price, and Variant count. The price-row
 tie-break is Variant position then id. `variantCount > 1` determines whether the
 card uses the “A partir de” label. The Cover join is inner because publishing

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   CATALOG_SORTS,
+  bestSellersInputSchema,
   catalogListInputSchema,
   catalogParamsSchema,
+  newestInputSchema,
   parseCatalogParams,
+  topRatedInputSchema,
   toCatalogSearchParams,
   type CatalogInput,
 } from "@/modules/products/shop/schemas";
@@ -387,5 +390,24 @@ describe("catalogListInputSchema", () => {
     });
 
     expect(catalogListInputSchema.parse(once)).toEqual(once);
+  });
+});
+
+describe("home Product preview exclusion inputs", () => {
+  const productIds = Array.from({ length: 13 }, (_, index) => `product_${index}`);
+
+  test.each([
+    ["best sellers", bestSellersInputSchema, 4],
+    ["newest", newestInputSchema, 8],
+    ["top rated", topRatedInputSchema, 12],
+  ])("bounds %s by the ids earlier previews can contribute", (_, schema, limit) => {
+    expect(schema.safeParse({ excludeProductIds: [] }).success).toBe(true);
+    expect(
+      schema.safeParse({ excludeProductIds: productIds.slice(0, limit) }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({ excludeProductIds: productIds.slice(0, limit + 1) })
+        .success,
+    ).toBe(false);
   });
 });

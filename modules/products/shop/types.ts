@@ -13,6 +13,8 @@
  * stay inside their queries.
  */
 export type ProductCardRow = {
+  /** Stable Product identity used to keep composed preview sections unique. */
+  id: string;
   slug: string;
   name: string;
   brandName: string;

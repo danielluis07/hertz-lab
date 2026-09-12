@@ -36,6 +36,7 @@ identically:**
 
 ```ts
 type ProductCardRow = {
+  id: string;
   slug: string;
   name: string;
   brandName: string;
@@ -57,6 +58,11 @@ two same-priced Variants saying _A partir de R$ 100_. It is rejected because it
 makes the card's label depend on a coincidence of pricing: an Admin editing one
 Variant's price would change the wording on a different Product's card with no
 edit to that Product, and nobody would connect the two.
+
+**`id` is composition identity, not card copy.** The home route excludes the
+Products already returned by each earlier preview before the next ranking's
+limit. Carrying the Product id on the shared row lets the route compose those
+reads without an extra lookup or pretending that a Slug is a database id.
 
 **The card lives at `modules/products/shop/components/product-card.tsx`.**
 ADR-0007's promotion gate requires a second **module** and it does not fire —

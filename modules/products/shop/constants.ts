@@ -11,6 +11,9 @@ import type { CatalogInput } from "@/modules/products/shop/schemas";
  */
 export const CATALOG_PER_PAGE = 24;
 
+/** Every home Product preview is server-bounded to one four-card row. */
+export const HOME_PRODUCT_LIMIT = 4;
+
 /**
  * Each input key's public parameter name (ADR-0005). What `PaginationNav`'s
  * `paramKey` and every catalogue filter control read, so no surface spells a
