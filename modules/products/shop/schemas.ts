@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { SortOrder } from "@/lib/utils/sort";
-import { CATALOG_PARAMS } from "@/modules/products/shop/constants";
+import {
+  CATALOG_PARAMS,
+  HOME_PRODUCT_LIMIT,
+} from "@/modules/products/shop/constants";
 
 /**
  * The catalogue's `?ordenar=` values, each mapped to the English order the
@@ -127,6 +130,22 @@ export const catalogListInputSchema = z
   .transform(resolveSort);
 
 export type CatalogListInput = z.infer<typeof catalogListInputSchema>;
+
+/**
+ * A later home preview may exclude at most the four Product ids contributed
+ * by every section before it. Empty arrays are deliberately valid.
+ */
+function previewExclusionInput(sectionsBefore: number) {
+  return z.object({
+    excludeProductIds: z
+      .array(z.string().min(1))
+      .max(HOME_PRODUCT_LIMIT * sectionsBefore),
+  });
+}
+
+export const bestSellersInputSchema = previewExclusionInput(1);
+export const newestInputSchema = previewExclusionInput(2);
+export const topRatedInputSchema = previewExclusionInput(3);
 
 /**
  * Whole reais with up to two centavo digits after either separator — what a
