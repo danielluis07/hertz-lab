@@ -1,9 +1,10 @@
-import { requireAuth } from "@/lib/auth-guards";
+import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth-guards";
 
 const AccountPage = async () => {
-  await requireAuth();
+  await requireUser();
 
-  return <h1>Minha conta</h1>;
+  redirect("/minha-conta/pedidos");
 };
 
 export default AccountPage;
