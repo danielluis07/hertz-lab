@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getRootCategories } from "@/modules/categories/shop";
 import { caller } from "@/trpc/server";
 
 export const metadata: Metadata = {
@@ -6,7 +7,14 @@ export const metadata: Metadata = {
 };
 
 const HomePage = async () => {
-  const categoriesPromise = caller.categories.shop.roots();
+  // Keep fetching coordinated here: each Product ranking needs the earlier
+  // sections' ids to exclude duplicates before its limit and still backfill.
+  // Streaming would reveal results sooner during a request-time render, but
+  // would not remove this dependency. This public route prerenders and caches
+  // its complete output (ADR-0031), so cache hits do not await these queries.
+  // Categories run alongside the chain; the shared memoized read also serves
+  // the header and footer without another query in the same render.
+  const categoriesPromise = getRootCategories();
   const productPreviewsPromise = (async () => {
     const promotions = await caller.products.shop.promotions();
     const bestSellers = await caller.products.shop.bestSellers({
