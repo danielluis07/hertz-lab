@@ -17,8 +17,11 @@ import { CartBadge } from "@/modules/cart/components/cart-badge";
  * two per-visitor controls, whose slots are fixed so nothing shifts when a
  * session resolves. On a phone the search drops to a full-width line of its
  * own. The second row is the catalogue's nav — `Produtos`, then every root
- * Category flat, in the order the read returns them. It scrolls sideways
- * rather than wrapping when the roots outgrow the width.
+ * Category flat, in the order the read returns them, centred over the page. It
+ * scrolls sideways rather than wrapping when the roots outgrow the width — and
+ * the centring is the *safe* kind, which falls back to the start edge on
+ * overflow; plain `center` would push the first links past a left edge the
+ * scroll cannot reach.
  *
  * **No dropdown and no active state**, both declined rather than deferred
  * (`docs/STOREFRONT.md`). Children are found on their root's own page. There
@@ -57,7 +60,7 @@ export async function SiteHeader() {
       </div>
 
       <nav aria-label="Categorias" className="border-t">
-        <ul className="mx-auto flex h-11 w-full max-w-7xl items-center gap-6 overflow-x-auto px-6 text-sm whitespace-nowrap [scrollbar-width:none]">
+        <ul className="mx-auto flex h-11 w-full max-w-7xl items-center justify-center-safe gap-6 overflow-x-auto px-6 text-sm whitespace-nowrap [scrollbar-width:none]">
           <li className="flex items-center gap-6">
             <Link
               href="/produtos"

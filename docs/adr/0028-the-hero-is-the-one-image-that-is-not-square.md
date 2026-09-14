@@ -45,6 +45,13 @@ The asset is commissioned at **2400 × 1350** with its essential subject inside
 the central **1800 × 1350** safe region, so both the `4/3` mobile crop and the
 `16/9` desktop crop survive. Rendered height is capped at `70svh`.
 
+> **Narrowed when the home route was built (#114): there is no mobile crop.**
+> The Hero's heading is set in the photograph's empty ground either side of
+> the subject, which only has room for display type from `lg`. Below it the
+> photograph is not rendered and the Hero is its type alone, so the `4/3` crop
+> above is never shown. The safe region still protects the `16/9` crop under
+> the `70svh` cap. `docs/DESIGN.md` § Layout holds the composition.
+
 Changing the hero is a commit.
 
 ### Considered and rejected

@@ -132,10 +132,21 @@ apart is a dashboard.
   at the data layer. At 1280px with 4 columns a Cover renders near 290px.
 - **Full-bleed is permitted only for the home hero and category strips.** Text
   never exceeds the container, on any surface.
-- The home Hero uses the committed 2400 × 1350 photograph at 4:3 on mobile and
-  16:9 from the medium breakpoint, capped at 70svh. Its essential subject stays
-  inside the central 1800 × 1350 safe region so both crops survive. The text
-  panel follows the photograph and never overlays it (ADR-0028).
+- The home Hero shows the committed 2400 × 1350 photograph **from `lg` only**,
+  at 16:9 capped at 70svh (ADR-0028).
+- **The Hero is the one place type sits on a photograph, and only on its empty
+  ground.** The display heading is split around the subject's head at ear
+  level — one half either side, set in the near-white ground where ink needs no
+  scrim — with the supporting line and the action beneath the right half. Type
+  never crosses the subject, and no other photograph in the Storefront carries
+  text. A replacement hero must keep an empty ground beside the subject, or the
+  split goes with it.
+- **Below `lg` the Hero is type alone.** The side bands are too narrow for
+  display type there, and a photograph stacked above the text would push the
+  heading and the page's action below a phone's fold for a picture the heading
+  no longer sits in. Hidden is not unfetched: the image's `sizes` must resolve
+  to its smallest rendition below `lg`, or `preload` downloads the full hero
+  for a screen that never shows it.
 
 ## Elevation
 

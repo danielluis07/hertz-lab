@@ -2,6 +2,7 @@ import "server-only";
 
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
@@ -207,6 +208,25 @@ async function deleteImageObjects(keys: readonly string[]): Promise<void> {
   );
 }
 
+/**
+ * What a committed Product write owes the shop's cache (ADR-0036): `/`, the
+ * one static route that renders Product rows — its four previews re-derive
+ * from them, and it has no time-based revalidation to catch up on its own
+ * (ADR-0031). Called after the commit, never inside the transaction, so a
+ * rolled-back write invalidates nothing.
+ *
+ * `create` owes it too, per the ADR's table, although a new Product is a draft
+ * no shopper sees: the regeneration is lazy, and a write path that skipped it
+ * would be the one nobody remembers when drafts stop being the only way in.
+ *
+ * `/produto/<slug>` is not here yet: that route reads nothing and so caches
+ * nothing to go stale. It joins this call when the product page renders
+ * Product data.
+ */
+function revalidateHome(): void {
+  revalidatePath("/");
+}
+
 export const adminRouter = createTRPCRouter({
   /**
    * Every Product in every status, one page at a time. `perPage` is not an
@@ -330,7 +350,7 @@ export const adminRouter = createTRPCRouter({
   create: adminProcedure.input(productSchema).mutation(async ({ input }) => {
     await assertImagesUploaded(input.images);
 
-    return db.transaction(async (tx) => {
+    const written = await db.transaction(async (tx) => {
       // Both uniques are checked before the write rather than caught after it,
       // for the reason `queries.ts` gives. No `exceptId` here: a Product that
       // does not exist yet has no slug of its own to collide with.
@@ -431,6 +451,10 @@ export const adminRouter = createTRPCRouter({
 
       return { id: created.id };
     });
+
+    revalidateHome();
+
+    return written;
   }),
 
   /**
@@ -741,6 +765,8 @@ export const adminRouter = createTRPCRouter({
       // happens next. The removal an Admin confirmed by saving (ADR-0018).
       await deleteImageObjects(written.droppedKeys);
 
+      revalidateHome();
+
       return { id: written.id };
     }),
 
@@ -802,6 +828,8 @@ export const adminRouter = createTRPCRouter({
         .set({ status: "active" })
         .where(eq(product.id, input.id));
 
+      revalidateHome();
+
       return { id: input.id };
     }),
 
@@ -833,6 +861,8 @@ export const adminRouter = createTRPCRouter({
         .update(product)
         .set({ status: "archived" })
         .where(eq(product.id, input.id));
+
+      revalidateHome();
 
       return { id: input.id };
     }),

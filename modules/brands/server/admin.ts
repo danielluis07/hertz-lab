@@ -2,6 +2,7 @@ import "server-only";
 
 import { TRPCError } from "@trpc/server";
 import { asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
@@ -179,8 +180,8 @@ export const adminRouter = createTRPCRouter({
    */
   update: adminProcedure
     .input(brandSchema.extend({ id: z.string() }))
-    .mutation(async ({ input }) =>
-      db.transaction(async (tx) => {
+    .mutation(async ({ input }) => {
+      const written = await db.transaction(async (tx) => {
         // Only the id: nothing else of the row decides anything here, and a
         // procedure selecting columns it does not decide on invites the next
         // reader to use them. `FOR UPDATE` is what the read is for.
@@ -217,8 +218,15 @@ export const adminRouter = createTRPCRouter({
           .where(eq(brand.id, input.id));
 
         return { id: input.id };
-      }),
-    ),
+      });
+
+      // After the commit: a rename changes the meta line on every card in
+      // `/`'s previews that names this Brand (ADR-0036). The product pages'
+      // `/produto/[slug]` pattern joins it when that route renders the Brand.
+      revalidatePath("/");
+
+      return written;
+    }),
 
   /**
    * A Brand goes away, and only when no Product names it. **This is ADR-0023
