@@ -16,7 +16,7 @@ import { useAddToCart } from "@/modules/cart/hooks/use-add-to-cart";
  *   mutation. Nothing is stored for replay: the shopper presses it again on
  *   return.
  * - **Session still resolving** — does nothing rather than guess which of the
- *   two it is. `resolving` lets the button say so.
+ *   two it is; the button reads `resolving` and stays disabled meanwhile.
  */
 export function useBuyVariant(productSlug: string) {
   const router = useRouter();

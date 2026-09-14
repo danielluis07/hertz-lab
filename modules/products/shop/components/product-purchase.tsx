@@ -20,7 +20,7 @@ export function ProductPurchase({
   product: ProductPurchaseFields;
 }) {
   const purchase = useProductPurchase(product);
-  const { buy, adding } = useBuyVariant(product.slug);
+  const { buy, adding, resolving } = useBuyVariant(product.slug);
 
   return (
     <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16">
@@ -33,6 +33,7 @@ export function ProductPurchase({
         product={product}
         purchase={purchase}
         adding={adding}
+        resolving={resolving}
         onBuy={() =>
           buy({ variantId: purchase.variant.id, quantity: purchase.quantity })
         }

@@ -24,11 +24,14 @@ export function ProductBuyPanel({
   purchase,
   onBuy,
   adding,
+  resolving,
 }: {
   product: ProductPurchaseFields;
   purchase: ReturnType<typeof useProductPurchase>;
   onBuy: () => void;
   adding: boolean;
+  /** The session is still resolving, so a press could not be routed yet. */
+  resolving: boolean;
 }) {
   const variantGroupName = useId();
   const rating = ratingSummary(product);
@@ -166,9 +169,11 @@ export function ProductBuyPanel({
           <Button
             size="lg"
             className="h-11 flex-1 text-base"
-            disabled={!buyable || adding}
+            // Disabled while the session resolves rather than swallowing a
+            // press that could not yet tell a shopper from a visitor.
+            disabled={!buyable || adding || resolving}
             focusableWhenDisabled
-            aria-busy={adding}
+            aria-busy={adding || (buyable && resolving)}
             onClick={onBuy}>
             {adding && <Spinner aria-hidden data-icon="inline-start" />}
             Comprar

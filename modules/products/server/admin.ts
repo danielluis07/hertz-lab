@@ -220,29 +220,27 @@ async function deleteImageObjects(keys: readonly string[]): Promise<void> {
  * no shopper sees: the regeneration is lazy, and a write path that skipped it
  * would be the one nobody remembers when drafts stop being the only way in.
  *
- * `/produto/<slug>` is a separate call, `revalidateProductPage`, because
- * `create` does not owe it: a draft's slug is a 404 with nothing to go stale.
+ * The product pages are a separate call, `revalidateProductPages`, because
+ * `create` does not owe them: a draft appears on no page.
  */
 function revalidateHome(): void {
   revalidatePath("/");
 }
 
 /**
- * The other static route that renders Product rows (ADR-0035): one literal
+ * The other static route that renders Product rows (ADR-0035): every cached
  * `/produto/<slug>`, which caches on its first request and has no timer to
  * catch up by (ADR-0031). After the commit, like `revalidateHome`.
+ *
+ * **The pattern, not the literal path.** A Product is also a card in the
+ * _Related Products_ section of every other Product in its Category, so
+ * publishing, archiving or editing one changes pages other than its own —
+ * which is ADR-0036's genuine fan-out, and has no bounded path list without a
+ * query in the write path. The pattern also reaches this Product's own page,
+ * including the one cached under a slug the edit just replaced. Blunt, and
+ * cheap because regeneration is lazy.
  */
-function revalidateProductPage(slug: string): void {
-  revalidatePath(`/produto/${slug}`);
-}
-
-/**
- * Every cached `/produto/<slug>` at once, for the writes ADR-0036 calls
- * genuine fan-out: a Product leaving or joining a Category changes the
- * _Related Products_ section of every other Product in both. Blunt, and cheap
- * because regeneration is lazy.
- */
-function revalidateAllProductPages(): void {
+function revalidateProductPages(): void {
   revalidatePath("/produto/[slug]", "page");
 }
 
@@ -512,15 +510,8 @@ export const adminRouter = createTRPCRouter({
       await assertImagesUploaded(input.images);
 
       const written = await db.transaction(async (tx) => {
-        // The slug and Category as they were, for the invalidation after the
-        // commit: a changed slug leaves a cached page at the old path, and a
-        // changed Category changes other Products' pages (ADR-0036).
         const [existing] = await tx
-          .select({
-            id: product.id,
-            slug: product.slug,
-            categoryId: product.categoryId,
-          })
+          .select({ id: product.id })
           .from(product)
           .where(eq(product.id, input.id));
 
@@ -781,8 +772,6 @@ export const adminRouter = createTRPCRouter({
 
         return {
           id: input.id,
-          previousSlug: existing.slug,
-          movedCategory: existing.categoryId !== input.categoryId,
           droppedKeys: droppedImages
             .map((row) => row.s3Key)
             .filter((key) => !submittedKeys.has(key)),
@@ -794,15 +783,7 @@ export const adminRouter = createTRPCRouter({
       await deleteImageObjects(written.droppedKeys);
 
       revalidateHome();
-      if (written.movedCategory) {
-        // The pattern reaches this Product's own path, old or new, as well.
-        revalidateAllProductPages();
-      } else {
-        revalidateProductPage(input.slug);
-        if (written.previousSlug !== input.slug) {
-          revalidateProductPage(written.previousSlug);
-        }
-      }
+      revalidateProductPages();
 
       return { id: written.id };
     }),
@@ -885,17 +866,16 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const [published] = await db
+      await db
         .update(product)
         .set({ status: "active" })
-        .where(eq(product.id, input.id))
-        .returning({ slug: product.slug });
+        .where(eq(product.id, input.id));
 
       revalidateHome();
-      // Unconditionally, for the reason ADR-0036 gives: whether the 404 this
-      // slug rendered while it was a draft is itself cached is not something
-      // to assert, and this makes the question moot.
-      if (published) revalidateProductPage(published.slug);
+      // Its own page included, for the reason ADR-0036 gives: whether the 404
+      // its slug rendered as a draft is itself cached is not something to
+      // assert, and this makes the question moot.
+      revalidateProductPages();
 
       return { id: input.id };
     }),
@@ -924,14 +904,13 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const [archived] = await db
+      await db
         .update(product)
         .set({ status: "archived" })
-        .where(eq(product.id, input.id))
-        .returning({ slug: product.slug });
+        .where(eq(product.id, input.id));
 
       revalidateHome();
-      if (archived) revalidateProductPage(archived.slug);
+      revalidateProductPages();
 
       return { id: input.id };
     }),
