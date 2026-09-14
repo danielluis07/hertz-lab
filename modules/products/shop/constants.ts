@@ -15,6 +15,12 @@ export const CATALOG_PER_PAGE = 24;
 export const HOME_PRODUCT_LIMIT = 4;
 
 /**
+ * The product page's Related Products: a hard maximum of one four-card row. A
+ * short result stays short — the section is never padded (`docs/STOREFRONT.md`).
+ */
+export const RELATED_PRODUCT_LIMIT = 4;
+
+/**
  * Each input key's public parameter name (ADR-0005). What `PaginationNav`'s
  * `paramKey` and every catalogue filter control read, so no surface spells a
  * Portuguese parameter by hand.

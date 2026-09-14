@@ -221,9 +221,11 @@ export const adminRouter = createTRPCRouter({
       });
 
       // After the commit: a rename changes the meta line on every card in
-      // `/`'s previews that names this Brand (ADR-0036). The product pages'
-      // `/produto/[slug]` pattern joins it when that route renders the Brand.
+      // `/`'s previews that names this Brand, and the Buy panel of every
+      // product page of it — which has no bounded path list, so the pattern
+      // (ADR-0036).
       revalidatePath("/");
+      revalidatePath("/produto/[slug]", "page");
 
       return written;
     }),
