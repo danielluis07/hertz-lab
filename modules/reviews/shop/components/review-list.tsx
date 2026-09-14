@@ -33,7 +33,12 @@ export function ReviewList({
   page: ReviewListPage;
 }) {
   return (
-    <ReviewListPages productId={productId} nextCursor={page.nextCursor}>
+    // Keyed by the boundary: a re-rendered server page with a different
+    // cursor starts a fresh leaf rather than keeping pages from the old one.
+    <ReviewListPages
+      key={page.nextCursor?.id ?? "end"}
+      productId={productId}
+      nextCursor={page.nextCursor}>
       {page.items.map((review) => (
         <li key={review.id}>
           <ReviewItem review={review} />

@@ -56,7 +56,14 @@ export function ReviewForm({ productId }: { productId: string }) {
             name="rating"
             control={form.control}
             render={({ field, fieldState }) => (
-              <FieldSet data-invalid={fieldState.invalid} className="gap-2">
+              // The group carries the description: `aria-invalid` is not a
+              // state a radio supports, and its error is about the whole set.
+              <FieldSet
+                data-invalid={fieldState.invalid}
+                aria-describedby={
+                  fieldState.invalid ? "review-rating-error" : undefined
+                }
+                className="gap-2">
                 <FieldLegend variant="label">Sua nota</FieldLegend>
                 <RatingInput
                   name={field.name}
@@ -65,7 +72,10 @@ export function ReviewForm({ productId }: { productId: string }) {
                   onBlur={field.onBlur}
                   inputRef={field.ref}
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="review-rating-error"
+                  errors={[fieldState.error]}
+                />
               </FieldSet>
             )}
           />
@@ -85,8 +95,14 @@ export function ReviewForm({ productId }: { productId: string }) {
                   maxLength={120}
                   placeholder="Resuma sua experiência"
                   aria-invalid={fieldState.invalid}
+                  aria-describedby={
+                    fieldState.invalid ? "review-title-error" : undefined
+                  }
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="review-title-error"
+                  errors={[fieldState.error]}
+                />
               </Field>
             )}
           />
@@ -104,7 +120,11 @@ export function ReviewForm({ productId }: { productId: string }) {
                   maxLength={2_000}
                   placeholder="Como é o som, o conforto, o acabamento? Conte o que outros compradores precisam saber."
                   aria-invalid={fieldState.invalid}
-                  aria-describedby="review-body-hint"
+                  aria-describedby={
+                    fieldState.invalid
+                      ? "review-body-hint review-body-error"
+                      : "review-body-hint"
+                  }
                   className="min-h-32"
                 />
                 <FieldDescription id="review-body-hint">
@@ -112,7 +132,10 @@ export function ReviewForm({ productId }: { productId: string }) {
                   <span className="tabular-nums">{field.value.length}</span>{" "}
                   escritos
                 </FieldDescription>
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="review-body-error"
+                  errors={[fieldState.error]}
+                />
               </Field>
             )}
           />

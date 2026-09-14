@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -18,6 +18,10 @@ import { useTRPC } from "@/trpc/client";
  * - **Cold until requested.** `enabled` waits for the first press, then every
  *   later press asks for the next page. A remount forgets the request and
  *   shows the server page alone, whatever the cache still holds.
+ * - **Older pages never outlive their boundary.** The query key is only
+ *   `{ productId }` — `cursor` is the page parameter — so cached pages may have
+ *   started from an earlier server page's cursor. The first press resets them,
+ *   and `ReviewList` keys this leaf by its cursor so a new boundary remounts it.
  * - **A failure is local**: a sentence and a retry in place of the button.
  *   Queries have no global error tier (ADR-0013 covers mutations).
  *
@@ -35,17 +39,17 @@ export function ReviewListPages({
   children: React.ReactNode;
 }) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const [requested, setRequested] = useState(false);
-  const older = useInfiniteQuery(
-    trpc.reviews.shop.list.infiniteQueryOptions(
-      { productId },
-      {
-        enabled: requested && nextCursor !== null,
-        initialCursor: nextCursor,
-        getNextPageParam: (page) => page.nextCursor,
-      },
-    ),
+  const olderOptions = trpc.reviews.shop.list.infiniteQueryOptions(
+    { productId },
+    {
+      enabled: requested && nextCursor !== null,
+      initialCursor: nextCursor,
+      getNextPageParam: (page) => page.nextCursor,
+    },
   );
+  const older = useInfiniteQuery(olderOptions);
 
   const olderReviews = requested
     ? (older.data?.pages.flatMap((page) => page.items) ?? [])
@@ -80,8 +84,12 @@ export function ReviewListPages({
             focusableWhenDisabled
             aria-busy={older.isFetching}
             onClick={() => {
-              if (!requested) setRequested(true);
-              else if (older.isError && !older.data) older.refetch();
+              if (!requested) {
+                void queryClient.resetQueries({
+                  queryKey: olderOptions.queryKey,
+                });
+                setRequested(true);
+              } else if (older.isError && !older.data) older.refetch();
               else older.fetchNextPage();
             }}>
             {older.isFetching && <Spinner aria-hidden data-icon="inline-start" />}
