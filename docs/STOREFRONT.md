@@ -206,7 +206,7 @@ the path is the fixed narrowing.
 
 **Data flow.** The page rejects more than two path segments before reading.
 `categories.shop.bySlug({ slug: lastSegment })` returns the Category, parent
-slug, and children. The page validates that a one-segment URL names a root and
+slug and name, and children. The page validates that a one-segment URL names a root and
 that a two-segment URL matches the returned parent. It then sorts
 `categoryIds = [category.id, ...children.map(id)]` for stable query identity and
 passes them with the normalized catalogue input to

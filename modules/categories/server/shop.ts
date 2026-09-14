@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { category } from "@/db/schema";
 import { LOCALE } from "@/lib/constants";
 import { baseProcedure, createTRPCRouter } from "@/trpc/init";
+import { categoryBySlugInputSchema } from "@/modules/categories/shop/schemas";
 
 /** Built once, for the reason `docs/CONVENTIONS.md` gives its formatters. */
 const collator = new Intl.Collator(LOCALE);
@@ -39,4 +40,48 @@ export const shopRouter = createTRPCRouter({
 
     return rows.sort((a, b) => collator.compare(a.name, b.name));
   }),
+
+  /**
+   * One Category by slug, for `/produtos/[...categoria]`, or `null` — which the
+   * page turns into `notFound()` (`docs/MODULES.md`).
+   *
+   * **One read, four jobs** (ADR-0043): the heading and description, the
+   * canonical-path check (`parentSlug`), the child strip (`children`) and the
+   * catalogue's subtree ids. The parent's name is the breadcrumb's root
+   * segment (ADR-0053). Anything narrower makes the page read a row it already
+   * had.
+   *
+   * The parent is flattened to `parentSlug` and `parentName`, the shape
+   * `categoryPath` and `products.shop.bySlug`'s Category already speak, so
+   * the path rule and the trail take this row as it arrives.
+   *
+   * Children are sorted by the pt-BR collator for the reason `roots` gives. A
+   * child's `children` is always empty (ADR-0022), which is what lets the page
+   * treat both levels with one code path.
+   */
+  bySlug: baseProcedure
+    .input(categoryBySlugInputSchema)
+    .query(async ({ input }) => {
+      const row = await db.query.category.findFirst({
+        columns: { id: true, name: true, slug: true, description: true },
+        where: { slug: input.slug },
+        with: {
+          parent: { columns: { name: true, slug: true } },
+          children: {
+            columns: { id: true, name: true, slug: true, imageS3Key: true },
+          },
+        },
+      });
+
+      if (!row) return null;
+
+      const { parent, children, ...fields } = row;
+
+      return {
+        ...fields,
+        parentSlug: parent?.slug ?? null,
+        parentName: parent?.name ?? null,
+        children: children.sort((a, b) => collator.compare(a.name, b.name)),
+      };
+    }),
 });

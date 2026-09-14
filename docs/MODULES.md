@@ -342,11 +342,14 @@ is `bySlug`, not `byId`, and it returns `null` for the page to turn into
 are `list`, `bySlug`, `options`, `roots`; writes take their domain verb from
 `CONTEXT.md`'s own vocabulary, exactly as admin's do.
 
-**`categories.shop.bySlug` returns the Category with its parent's slug and its
-children** — `{ id, name, slug, description, parent: { slug } | null, children:
-{ id, name, slug, imageS3Key }[] }`. One read, four jobs: the heading and
-description, ADR-0043's chain validation, the child strip, and the subtree ids
-`products.shop.list` filters on. Anything narrower makes the category page issue
+**`categories.shop.bySlug` returns the Category with its parent's slug and name
+and its children** — `{ id, name, slug, description, parentSlug: string | null,
+parentName: string | null, children: { id, name, slug, imageS3Key }[] }`. One
+read, four jobs: the heading and description, ADR-0043's chain validation, the
+child strip, and the subtree ids `products.shop.list` filters on — and the
+parent's name is the breadcrumb's root segment (ADR-0053). The parent is flat,
+not ADR-0043's `parent: { slug } | null`, because that is the shape
+`categoryPath` and `products.shop.bySlug`'s Category already speak. Anything narrower makes the category page issue
 a second read of a row it already had.
 
 **A shop `options` read offers nothing that cannot return a result.**

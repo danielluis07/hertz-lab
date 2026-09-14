@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { ChevronRightIcon } from "lucide-react";
-import type { BreadcrumbItem } from "@/modules/products/shop/breadcrumb";
+
+export type BreadcrumbItem = {
+  label: string;
+  /** `null` for the last item: the page the shopper is on. */
+  href: string | null;
+};
 
 /**
- * The product page's trail, as server markup. The items are
- * `productBreadcrumb`'s — this only lays them out: muted links, ink for the
- * page the shopper is on, a chevron between.
+ * A Storefront trail, as server markup: muted links, ink for the page the
+ * shopper is on, a chevron between. It knows only the shape of a trail — which
+ * items a page has is its module's rule (`modules/categories/breadcrumb.ts`,
+ * `modules/products/shop/breadcrumb.ts`). Promoted out of `products` when
+ * `categories` became the second module to need it, knowing no rule
+ * (`docs/MODULES.md`, "Promotion").
  */
-export function ProductBreadcrumb({ items }: { items: BreadcrumbItem[] }) {
+export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
   return (
     <nav aria-label="Trilha de navegação">
       <ol className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

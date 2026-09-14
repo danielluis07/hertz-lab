@@ -1,10 +1,5 @@
-import { categoryPath } from "@/modules/categories/paths";
-
-export type BreadcrumbItem = {
-  label: string;
-  /** `null` for the last item: the page the shopper is on. */
-  href: string | null;
-};
+import type { BreadcrumbItem } from "@/components/breadcrumb";
+import { categoryTrail } from "@/modules/categories/breadcrumb";
 
 /**
  * The product page's trail: `Início › Produtos › <raiz> › <filho> › <Produto>`,
@@ -13,6 +8,9 @@ export type BreadcrumbItem = {
  * to its Category — the header's root links have no dropdown (ADR-0042) — and
  * the visible counterpart of the page's `BreadcrumbList`, so both must be
  * built from this one list.
+ *
+ * Everything up to the Category is `categoryTrail`, the same list the
+ * Category route ends on.
  */
 export function productBreadcrumb(product: {
   name: string;
@@ -23,20 +21,8 @@ export function productBreadcrumb(product: {
     parentSlug: string | null;
   };
 }): BreadcrumbItem[] {
-  const { category } = product;
-
   return [
-    { label: "Início", href: "/" },
-    { label: "Produtos", href: "/produtos" },
-    ...(category.parentSlug !== null && category.parentName !== null
-      ? [
-          {
-            label: category.parentName,
-            href: categoryPath({ slug: category.parentSlug, parentSlug: null }),
-          },
-        ]
-      : []),
-    { label: category.name, href: categoryPath(category) },
+    ...categoryTrail(product.category),
     { label: product.name, href: null },
   ];
 }

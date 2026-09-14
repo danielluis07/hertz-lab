@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { productBreadcrumb } from "@/modules/products/shop/breadcrumb";
-import { ProductBreadcrumb } from "@/modules/products/shop/components/product-breadcrumb";
 import { ProductPurchase } from "@/modules/products/shop/components/product-purchase";
 import { ProductSpecifications } from "@/modules/products/shop/components/product-specifications";
 import { RelatedProducts } from "@/modules/products/shop/components/related-products";
@@ -40,7 +40,7 @@ const ProductPage = async ({ params }: PageProps<"/produto/[slug]">) => {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col px-6 pt-6 pb-16 md:pb-24">
-      <ProductBreadcrumb items={productBreadcrumb(product)} />
+      <Breadcrumb items={productBreadcrumb(product)} />
 
       <div className="pt-8 md:pt-10">
         {/* Only what Gallery and Buy panel render crosses into the client. */}
