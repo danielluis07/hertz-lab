@@ -148,6 +148,21 @@ export const newestInputSchema = previewExclusionInput(2);
 export const topRatedInputSchema = previewExclusionInput(3);
 
 /**
+ * `products.shop.bySlug`'s input. Not lenient: the slug is a path segment Next
+ * has already matched, and an unknown one is `null`, not a parse failure.
+ */
+export const productBySlugInputSchema = z.object({ slug: z.string().min(1) });
+
+/**
+ * `products.shop.related`'s input: the Product being read, to exclude, and its
+ * exact Category — both from the page's own `bySlug` result, never the URL.
+ */
+export const relatedProductsInputSchema = z.object({
+  productId: z.string().min(1),
+  categoryId: z.string().min(1),
+});
+
+/**
  * Whole reais with up to two centavo digits after either separator — what a
  * shopper types into a price box. Three digits after a separator is refused
  * rather than read: `1.000` is a thousand reais to a Brazilian and one real to

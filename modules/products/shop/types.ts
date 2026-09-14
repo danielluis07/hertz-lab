@@ -1,3 +1,26 @@
+import type { RouterOutput } from "@/trpc/routers/_app";
+
+/** `products.shop.bySlug`'s projection, once the page has ruled out `null`. */
+export type ProductPage = NonNullable<
+  RouterOutput["products"]["shop"]["bySlug"]
+>;
+
+/**
+ * The only Product fields that cross into the purchase area's client entry
+ * (`docs/STOREFRONT.md`): what Gallery and Buy panel render. Description,
+ * Specifications, Reviews and Related Products stay server markup.
+ */
+export type ProductPurchaseFields = Pick<
+  ProductPage,
+  | "slug"
+  | "name"
+  | "brandName"
+  | "ratingAverage"
+  | "ratingCount"
+  | "variants"
+  | "images"
+>;
+
 /**
  * The one row every shop Product card reads (ADR-0045): the catalogue grid,
  * `/`'s four Product previews and the product page's related section each

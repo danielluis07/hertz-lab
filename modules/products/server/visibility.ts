@@ -11,5 +11,14 @@ import { product } from "@/db/schema";
  * A clause and not a pure rule, which is why it lives in `server/` rather than
  * at the module root; ADR-0030 is what lets `cart`, `wishlist` and `checkout`
  * import it. The partial `product_active_idx` is built over the same predicate.
+ *
+ * **Over a table, for the relational builder.** `db.query` aliases the table it
+ * reads (`d0`), and a clause bound to `product` itself would name a table that
+ * query does not select from — so `bySlug` hands its `RAW` filter the alias it
+ * was given, and everything else uses `visibleProduct` below.
  */
-export const visibleProduct = eq(product.status, "active");
+export function visibleProductIn(table: typeof product) {
+  return eq(table.status, "active");
+}
+
+export const visibleProduct = visibleProductIn(product);

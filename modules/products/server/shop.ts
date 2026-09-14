@@ -10,6 +10,7 @@ import {
   gt,
   inArray,
   lte,
+  ne,
   notInArray,
   sql,
   type SQL,
@@ -22,17 +23,23 @@ import { soldUnitsByVariant } from "@/modules/orders/server/sales";
 import {
   CATALOG_PER_PAGE,
   HOME_PRODUCT_LIMIT,
+  RELATED_PRODUCT_LIMIT,
 } from "@/modules/products/shop/constants";
 import {
   bestSellersInputSchema,
   CATALOG_SORTS,
   catalogListInputSchema,
   newestInputSchema,
+  productBySlugInputSchema,
+  relatedProductsInputSchema,
   topRatedInputSchema,
   type CatalogSortBy,
 } from "@/modules/products/shop/schemas";
 import type { ProductCardRow } from "@/modules/products/shop/types";
-import { visibleProduct } from "@/modules/products/server/visibility";
+import {
+  visibleProduct,
+  visibleProductIn,
+} from "@/modules/products/server/visibility";
 
 /**
  * Each Product's Cover — its first Image in the Admin's order, a position and
@@ -204,6 +211,118 @@ function catalogOrder(
 }
 
 export const shopRouter = createTRPCRouter({
+  /**
+   * The product page's projection of one active Product, or `null` for every
+   * other state — unknown, draft and archived are the same absence, and the
+   * page turns it into `notFound()` (ADR-0041).
+   *
+   * **One relational query**, ordering Variants, Images and Specifications by
+   * `position` inside it: the array order *is* the position contract, so the
+   * numbers themselves are not returned. The id breaks a position tie, so two
+   * renders cannot disagree about which Variant is first.
+   *
+   * Only what the page renders crosses: no SKU, freight dimensions, timestamps
+   * or search vector. Brand and Category are references outside the Aggregate
+   * (`CONTEXT.md`); their names are read here because the page shows them, and
+   * the Category carries its parent so the breadcrumb can build the canonical
+   * path ADR-0043 defines (ADR-0053).
+   */
+  bySlug: baseProcedure
+    .input(productBySlugInputSchema)
+    .query(async ({ input }) => {
+      const row = await db.query.product.findFirst({
+        columns: {
+          id: true,
+          slug: true,
+          name: true,
+          description: true,
+          categoryId: true,
+          ratingAverage: true,
+          ratingCount: true,
+        },
+        where: {
+          slug: input.slug,
+          RAW: (table) => visibleProductIn(table),
+        },
+        with: {
+          brand: { columns: { name: true } },
+          category: {
+            columns: { name: true, slug: true },
+            with: { parent: { columns: { name: true, slug: true } } },
+          },
+          variants: {
+            columns: {
+              id: true,
+              name: true,
+              priceAmount: true,
+              compareAtPriceAmount: true,
+              stockQuantity: true,
+            },
+            orderBy: { position: "asc", id: "asc" },
+          },
+          images: {
+            columns: {
+              id: true,
+              variantId: true,
+              s3Key: true,
+              altText: true,
+            },
+            orderBy: { position: "asc", id: "asc" },
+          },
+          specifications: {
+            columns: { id: true, label: true, value: true },
+            orderBy: { position: "asc", id: "asc" },
+          },
+        },
+      });
+
+      if (!row) return null;
+
+      const { brand: productBrand, category: productCategory, ...fields } = row;
+
+      return {
+        ...fields,
+        brandName: productBrand.name,
+        category: {
+          name: productCategory.name,
+          slug: productCategory.slug,
+          // Both null for a root: the tree is two levels deep (ADR-0022), so
+          // a parent is always a root and has no parent of its own to carry.
+          parentSlug: productCategory.parent?.slug ?? null,
+          parentName: productCategory.parent?.name ?? null,
+        },
+      };
+    }),
+
+  /**
+   * Up to four other active Products filed on **exactly** this Category, as
+   * the shared `ProductCardRow` (ADR-0045), newest first.
+   *
+   * Deliberately plain: no descendant Categories, no Brand fallback, no
+   * personalisation or shuffling, and a short result is not padded. The id
+   * makes the order total, so a cached page and its regeneration agree.
+   */
+  related: baseProcedure
+    .input(relatedProductsInputSchema)
+    .query(async ({ input }) => {
+      const rows = await fromCardRows(
+        db.select(productCardSelection).from(product).$dynamic(),
+      )
+        .where(
+          and(
+            visibleProduct,
+            eq(product.categoryId, input.categoryId),
+            ne(product.id, input.productId),
+          ),
+        )
+        .groupBy(...PRODUCT_CARD_GROUP)
+        .orderBy(desc(product.createdAt), desc(product.id))
+        .limit(RELATED_PRODUCT_LIMIT);
+
+      const items: ProductCardRow[] = rows;
+      return items;
+    }),
+
   /**
    * Active Products whose price-driving Variant carries a real saving.
    * Relative reduction ranks before recency and stable Product identity.

@@ -45,6 +45,7 @@ import {
   isArchivable,
   isPublishable,
   isPublishableStatus,
+  uncoveredVariantIds,
 } from "@/modules/products/status";
 
 /**
@@ -219,12 +220,30 @@ async function deleteImageObjects(keys: readonly string[]): Promise<void> {
  * no shopper sees: the regeneration is lazy, and a write path that skipped it
  * would be the one nobody remembers when drafts stop being the only way in.
  *
- * `/produto/<slug>` is not here yet: that route reads nothing and so caches
- * nothing to go stale. It joins this call when the product page renders
- * Product data.
+ * `/produto/<slug>` is a separate call, `revalidateProductPage`, because
+ * `create` does not owe it: a draft's slug is a 404 with nothing to go stale.
  */
 function revalidateHome(): void {
   revalidatePath("/");
+}
+
+/**
+ * The other static route that renders Product rows (ADR-0035): one literal
+ * `/produto/<slug>`, which caches on its first request and has no timer to
+ * catch up by (ADR-0031). After the commit, like `revalidateHome`.
+ */
+function revalidateProductPage(slug: string): void {
+  revalidatePath(`/produto/${slug}`);
+}
+
+/**
+ * Every cached `/produto/<slug>` at once, for the writes ADR-0036 calls
+ * genuine fan-out: a Product leaving or joining a Category changes the
+ * _Related Products_ section of every other Product in both. Blunt, and cheap
+ * because regeneration is lazy.
+ */
+function revalidateAllProductPages(): void {
+  revalidatePath("/produto/[slug]", "page");
 }
 
 export const adminRouter = createTRPCRouter({
@@ -493,8 +512,15 @@ export const adminRouter = createTRPCRouter({
       await assertImagesUploaded(input.images);
 
       const written = await db.transaction(async (tx) => {
+        // The slug and Category as they were, for the invalidation after the
+        // commit: a changed slug leaves a cached page at the old path, and a
+        // changed Category changes other Products' pages (ADR-0036).
         const [existing] = await tx
-          .select({ id: product.id })
+          .select({
+            id: product.id,
+            slug: product.slug,
+            categoryId: product.categoryId,
+          })
           .from(product)
           .where(eq(product.id, input.id));
 
@@ -755,6 +781,8 @@ export const adminRouter = createTRPCRouter({
 
         return {
           id: input.id,
+          previousSlug: existing.slug,
+          movedCategory: existing.categoryId !== input.categoryId,
           droppedKeys: droppedImages
             .map((row) => row.s3Key)
             .filter((key) => !submittedKeys.has(key)),
@@ -766,6 +794,15 @@ export const adminRouter = createTRPCRouter({
       await deleteImageObjects(written.droppedKeys);
 
       revalidateHome();
+      if (written.movedCategory) {
+        // The pattern reaches this Product's own path, old or new, as well.
+        revalidateAllProductPages();
+      } else {
+        revalidateProductPage(input.slug);
+        if (written.previousSlug !== input.slug) {
+          revalidateProductPage(written.previousSlug);
+        }
+      }
 
       return { id: written.id };
     }),
@@ -784,13 +821,13 @@ export const adminRouter = createTRPCRouter({
    * global code map. It names no field, so the global net toasts it rather
    * than standing down for a form that is not there.
    *
-   * **An active Product has at least one photograph**, which is why this reads
-   * a count as well as a status. It is a publish rule rather than a schema
-   * rule on purpose: a draft with no images still saves (the description often
-   * precedes the photo shoot), and a Product archived before the rule existed
-   * stays archived and intact. The count is a second query rather than a join
-   * on the status read, because the common path — a Product that is already
-   * active — never needs it.
+   * **An active Product is photographable for every Variant** (`CONTEXT.md`),
+   * which is why this reads Variant and Image ownership as well as a status.
+   * It is a publish rule rather than a schema rule on purpose: a draft with no
+   * images still saves (the description often precedes the photo shoot), and
+   * a Product already active or archived is not rewritten. Ownership is a
+   * second read rather than a join on the status read, because the common
+   * refusal — a Product that is already active — never needs it.
    */
   publish: adminProcedure
     .input(transitionInput)
@@ -807,28 +844,58 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const [images] = await db
-        .select({ value: count() })
-        .from(productImage)
-        .where(eq(productImage.productId, input.id));
+      // The minimal ownership data the pure rule decides from: which Variants
+      // exist, and which Variant (or none) each Image belongs to.
+      const [variants, images] = await Promise.all([
+        db
+          .select({ id: productVariant.id, name: productVariant.name })
+          .from(productVariant)
+          .where(eq(productVariant.productId, input.id))
+          .orderBy(asc(productVariant.position), asc(productVariant.id)),
+        db
+          .select({ variantId: productImage.variantId })
+          .from(productImage)
+          .where(eq(productImage.productId, input.id)),
+      ]);
 
-      if (!isPublishable(status, images?.value ?? 0)) {
+      const coverage = {
+        variantIds: variants.map((variant) => variant.id),
+        imageVariantIds: images.map((image) => image.variantId),
+      };
+
+      if (!isPublishable(status, coverage)) {
+        // Separate refusals rather than one sentence covering all, because an
+        // Admin acts on them differently: the status refusal above is a stale
+        // button, these are photographs to go and take — and the second says
+        // which. Naming it is the point of writing copy beside the throw at
+        // all (ADR-0013).
+        const uncovered = new Set(uncoveredVariantIds(coverage));
+        const names = variants
+          .filter((variant) => uncovered.has(variant.id))
+          .map((variant) => variant.name);
+
         throw new TRPCError({
           code: "CONFLICT",
-          // Two refusals rather than one sentence covering both, because an
-          // Admin acts on them differently: the first is a stale button, this
-          // one is a photograph to go and take. Naming it is the point of
-          // writing copy beside the throw at all (ADR-0013).
-          message: "Adicione ao menos uma foto antes de publicar este produto.",
+          message:
+            images.length === 0 || names.length === 0
+              ? "Adicione ao menos uma foto antes de publicar este produto."
+              : `Adicione uma foto do produto ou uma foto para ${
+                  names.length === 1 ? "a variação" : "as variações"
+                } ${names.join(", ")} antes de publicar.`,
         });
       }
 
-      await db
+      const [published] = await db
         .update(product)
         .set({ status: "active" })
-        .where(eq(product.id, input.id));
+        .where(eq(product.id, input.id))
+        .returning({ slug: product.slug });
 
       revalidateHome();
+      // Unconditionally, for the reason ADR-0036 gives: whether the 404 this
+      // slug rendered while it was a draft is itself cached is not something
+      // to assert, and this makes the question moot.
+      if (published) revalidateProductPage(published.slug);
 
       return { id: input.id };
     }),
@@ -857,12 +924,14 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      await db
+      const [archived] = await db
         .update(product)
         .set({ status: "archived" })
-        .where(eq(product.id, input.id));
+        .where(eq(product.id, input.id))
+        .returning({ slug: product.slug });
 
       revalidateHome();
+      if (archived) revalidateProductPage(archived.slug);
 
       return { id: input.id };
     }),
