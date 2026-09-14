@@ -22,3 +22,6 @@ export const reviewSchema = z.object({
 });
 
 export type ReviewFormValues = z.infer<typeof reviewSchema>;
+
+/** What the Review form holds before the schema trims and normalizes it. */
+export type ReviewFormInput = z.input<typeof reviewSchema>;
