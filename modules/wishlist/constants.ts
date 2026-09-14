@@ -10,3 +10,6 @@ export const WISHLIST_PER_PAGE = 24;
 export const WISHLIST_PARAMS = {
   page: "pagina",
 } as const satisfies Record<keyof WishlistListInput, string>;
+
+/** The account route that lists the Wishlist; pagination links build on it. */
+export const WISHLIST_PATH = "/minha-conta/favoritos";

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
+import { AUTH_PARAMS } from "@/modules/auth/redirects";
 
 /**
  * Cheap cookie presence check so logged-out visitors are redirected before a
@@ -13,7 +14,7 @@ export async function proxy(request: NextRequest) {
   if (!sessionCookie) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set(
-      "next",
+      AUTH_PARAMS.returnTo,
       request.nextUrl.pathname + request.nextUrl.search,
     );
     return NextResponse.redirect(loginUrl);
