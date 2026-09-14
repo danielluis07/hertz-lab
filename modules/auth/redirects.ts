@@ -11,7 +11,8 @@ export const ROLE_HOME: Record<UserRole, string> = {
 };
 
 /**
- * `proxy.ts` puts the page a logged-out visitor was denied into `?next=`.
+ * `proxy.ts` puts the page a logged-out visitor was denied into `?retorno=`,
+ * and a shop control sends one there through `loginHref`.
  * Only a same-site path is honoured: an absolute URL, a protocol-relative
  * `//evil.com`, or the backslash variant browsers normalise to one, would
  * turn the sign-in form into an open redirect.
@@ -33,4 +34,22 @@ export function isSafeNextPath(next: string | null | undefined): next is string 
  */
 export function postAuthPath(role: UserRole, next?: string | null): string {
   return isSafeNextPath(next) ? next : ROLE_HOME[role];
+}
+
+/**
+ * The public spelling of the return destination on `/login` and `/cadastro`
+ * (ADR-0005). Code says `returnTo`; only the URL says `retorno`.
+ */
+export const AUTH_PARAMS = {
+  returnTo: "retorno",
+} as const;
+
+/**
+ * Where an anonymous shopper is sent when they activate something only a
+ * signed-in User can do, carrying the page to come back to. Only the return is
+ * carried — never the write — so the shopper activates it again on return.
+ */
+export function loginHref(returnTo: string): string {
+  const params = new URLSearchParams({ [AUTH_PARAMS.returnTo]: returnTo });
+  return `/login?${params}`;
 }
