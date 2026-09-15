@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { STORE } from "@/lib/store";
+import { BUYING_FACTS, STORE } from "@/lib/store";
 
 export const metadata: Metadata = {
   title: "Sobre",
@@ -54,20 +54,20 @@ const AboutPage = () => {
       </p>
 
       <h2>Comprando com a gente</h2>
+      {/* The same list the home's Serviço strip renders (`lib/store.ts`). */}
       <ul>
-        <li>
-          Pagamento por <strong>Pix</strong>, <strong>cartão de crédito</strong>{" "}
-          ou <strong>boleto</strong>, processado pelo Mercado Pago.
-        </li>
-        <li>
-          Entrega pelos Correios, via PAC ou SEDEX, com prazo e valor
-          calculados no checkout.
-        </li>
-        <li>
-          Sete dias para desistir da compra depois de receber o produto, como
-          garante o Código de Defesa do Consumidor. Os detalhes estão em{" "}
-          <Link href="/trocas-e-devolucoes">Trocas e devoluções</Link>.
-        </li>
+        {BUYING_FACTS.map((fact) => (
+          <li key={fact.label}>
+            <strong>{fact.label}.</strong> {fact.text}
+            {fact.link && (
+              <>
+                {" "}
+                {fact.link.lead}{" "}
+                <Link href={fact.link.href}>{fact.link.label}</Link>.
+              </>
+            )}
+          </li>
+        ))}
       </ul>
 
       <h2>Fale com a gente</h2>

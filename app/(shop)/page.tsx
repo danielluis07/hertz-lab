@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
 import { CatalogImage } from "@/components/catalog-image";
 import { buttonVariants } from "@/components/ui/button";
+import { BUYING_FACTS, STORE } from "@/lib/store";
 import { getRootCategories } from "@/modules/categories/shop";
 import { ProductPreview } from "@/modules/products/shop/components/product-preview";
 import { caller } from "@/trpc/server";
@@ -111,6 +112,44 @@ const HomePage = async () => {
       </section>
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-6 py-16 md:gap-24 md:py-24">
+        {/*
+          Serviço: what buying here involves, from the list `/sobre` renders
+          too (`lib/store.ts`). A panel of labelled readings between hairlines,
+          not a row of trust badges — no icons, no accent, no motion: the
+          Hero's link stays the page's one vermilion element (DESIGN.md).
+        */}
+        <section aria-labelledby="home-servico">
+          <h2 id="home-servico" className="sr-only">
+            Comprando na {STORE.name}
+          </h2>
+          <dl className="grid divide-y border-y md:grid-cols-3 md:divide-x md:divide-y-0">
+            {BUYING_FACTS.map((fact) => (
+              <div
+                key={fact.label}
+                className="flex flex-col gap-2 py-6 md:px-6 md:first:pl-0 md:last:pr-0">
+                <dt className="text-muted-foreground text-xs tracking-wide uppercase">
+                  {fact.label}
+                </dt>
+                <dd className="text-sm leading-6">
+                  {fact.text}
+                  {fact.link && (
+                    <>
+                      {" "}
+                      {fact.link.lead}{" "}
+                      <Link
+                        href={fact.link.href}
+                        className="decoration-muted-foreground hover:decoration-foreground underline decoration-1 underline-offset-4 transition-colors duration-150 ease-out motion-reduce:transition-none">
+                        {fact.link.label}
+                      </Link>
+                      .
+                    </>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
         {categories.length > 0 && (
           <section
             aria-labelledby="home-categorias"
