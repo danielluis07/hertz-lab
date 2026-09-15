@@ -61,7 +61,7 @@ export const category = pgTable(
      *
      * **There is deliberately no alt-text column beside it** (ADR-0021). The
      * tile renders `alt=""` because it is a link already labelled by the
-     * Category name, and describing the picture beside it makes a screen
+     * Category name, and describing the picture as well makes a screen
      * reader say the same word twice. The asymmetry with
      * `product_image.alt_text` — `notNull` and refused empty — is the point:
      * that photograph is the only description a blind shopper gets of the

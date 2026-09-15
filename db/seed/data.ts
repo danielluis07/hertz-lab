@@ -22,9 +22,22 @@ import type { SeedCategory, SeedProduct } from "@/db/seed/types";
 export const PRODUCT_IMAGE_S3_KEY =
   "products/01a081e9-e6e9-74fb-bf9f-cd9b1868f24e.webp";
 
-/** The Category tile picture. Same shortcut, different S3 prefix. */
+/** Shared fallback for seeded child Category pictures. */
 export const CATEGORY_IMAGE_S3_KEY =
   "categories/01a081eb-a7d0-76e9-9849-62ac80438852.webp";
+
+/** The distinct root Category pictures used by the homepage grid. */
+export const ROOT_CATEGORY_IMAGE_S3_KEYS: Record<string, string> = {
+  "fones-de-ouvido":
+    "categories/01a0a4dc-39a6-7674-b250-75152e03e608.webp",
+  "caixas-de-som":
+    "categories/01a0a4ef-55e2-72af-ad95-ab2195c88272.webp",
+  "audio-automotivo":
+    "categories/01a0a4ef-55e5-7769-9953-7a770fd1d08a.webp",
+  "estudio-e-gravacao":
+    "categories/01a0a4ef-55e5-776a-ac59-8584efcb0ec3.webp",
+  acessorios: "categories/01a0a4ef-55e5-776b-b743-f78af2dfc7c8.webp",
+};
 
 /**
  * A Brand is a name and nothing else (`CONTEXT.md`), so this is a list of

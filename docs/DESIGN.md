@@ -134,13 +134,17 @@ apart is a dashboard.
   never exceeds the container, on any surface.
 - The home Hero shows the committed 2400 × 1350 photograph **from `lg` only**,
   at 16:9 capped at 70svh (ADR-0028).
-- **The Hero is the one place type sits on a photograph, and only on its empty
-  ground.** The display heading is split around the subject's head at ear
-  level — one half either side, set in the near-white ground where ink needs no
-  scrim — with the supporting line and the action beneath the right half. Type
-  never crosses the subject, and no other photograph in the Storefront carries
-  text. A replacement hero must keep an empty ground beside the subject, or the
-  split goes with it.
+- **The Hero is the only place display copy sits on a photograph, and only on
+  its empty ground.** The display heading is split around the subject's head at
+  ear level — one half either side, set in the near-white ground where ink needs
+  no scrim — with the supporting line and the action beneath the right half. Type
+  never crosses the subject. The home Category mosaic is the one navigation
+  exception: each picture carries only its Category name over a fixed neutral
+  bottom scrim, never promotional copy. One explicitly selected Category may
+  anchor the composition at twice the width and height of its supporting tiles;
+  that priority belongs to the home surface, never to the Category itself. A
+  replacement hero must keep an empty ground beside the subject, or the split
+  goes with it.
 - **Below `lg` the Hero is type alone.** The side bands are too narrow for
   display type there, and a photograph stacked above the text would push the
   heading and the page's action below a phone's fold for a picture the heading

@@ -12,8 +12,8 @@ import { categoryPath } from "@/modules/categories/paths";
  * without one: a child has no children (ADR-0022), so the page passes the
  * same array on both levels and never branches (ADR-0043).
  *
- * The picture is a small mark beside the name, as on the home strip: the
- * photographs on this page are the Products'. It is decorative — the link is
+ * The picture stays a small mark beside the name: the photographs on this
+ * page are the Products'. It is decorative — the link is
  * named by the Category (ADR-0021). On a phone the strip scrolls sideways
  * edge to edge rather than stacking a column of links above the grid.
  */

@@ -270,11 +270,13 @@ bem avaliados. The Hero contains the committed decorative photograph, page
 heading, supporting copy, and a link to `/produtos`. Serviço states the three
 buying facts the store actually honours — payment methods, Correios delivery
 by PAC or SEDEX, and the seven-day right to withdraw with a link to
-`/trocas-e-devolucoes` — and nothing the checkout does not do. Categorias links
-every root Category to `/produtos/<root-slug>` and includes its optional
-decorative picture. Each Product preview contains at most four shared Product
-cards and a link to its full catalogue view; an empty preview is omitted. The
-Category band is the one full-bleed block below the Hero: a muted ground
+`/trocas-e-devolucoes` — and nothing the checkout does not do. Categorias is an
+asymmetric mosaic that links every root Category to `/produtos/<root-slug>`.
+Fones de Ouvido is the homepage's large anchor beside four equal supporting
+tiles; each decorative picture carries its Category name over a fixed neutral
+bottom scrim. Each Product preview contains at most
+four shared Product cards and a link to its full catalogue view; an empty
+preview is omitted. The Category band is the one full-bleed block below the Hero: a muted ground
 carrying, inside the container, one root Category's square picture beside its
 name, links to its child Categories, and a link to `/produtos/<root-slug>`. No
 type sits on that picture. The band is omitted when no root Category has a

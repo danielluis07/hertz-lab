@@ -31,6 +31,7 @@ import {
   CATEGORY_IMAGE_S3_KEY,
   PRODUCT_IMAGE_S3_KEY,
   PRODUCTS,
+  ROOT_CATEGORY_IMAGE_S3_KEYS,
 } from "@/db/seed/data";
 import type { SeedCategory, SeedProduct } from "@/db/seed/types";
 import { slugify } from "@/lib/utils/slug";
@@ -60,13 +61,17 @@ function flattenCategories(
   parentId: string | null = null,
 ): CategoryRow[] {
   return nodes.flatMap((node) => {
+    const slug = slugify(node.name);
     const row: CategoryRow = {
       id: Bun.randomUUIDv7(),
       name: node.name,
-      slug: slugify(node.name),
+      slug,
       description: node.description,
       parentId,
-      imageS3Key: CATEGORY_IMAGE_S3_KEY,
+      imageS3Key:
+        parentId === null
+          ? (ROOT_CATEGORY_IMAGE_S3_KEYS[slug] ?? CATEGORY_IMAGE_S3_KEY)
+          : CATEGORY_IMAGE_S3_KEY,
     };
 
     return [row, ...flattenCategories(node.children ?? [], row.id)];
