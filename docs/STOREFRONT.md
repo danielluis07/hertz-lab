@@ -264,26 +264,39 @@ requires every active Product to be photographable.
 
 ### `/`
 
-**Structure.** Six Server Component blocks, in this order: Hero, Categorias,
-Promoções, Mais vendidos, Novidades, and Mais bem avaliados. The Hero contains
-the committed decorative photograph, page heading, supporting copy, and a link
-to `/produtos`. Categorias links every root Category to
-`/produtos/<root-slug>` and includes its optional decorative picture. Each
-Product preview contains at most four shared Product cards and a link to its
-full catalogue view; an empty preview is omitted.
+**Structure.** Eight Server Component blocks, in this order: Hero, Serviço,
+Categorias, Promoções, Mais vendidos, the Category band, Novidades, and Mais
+bem avaliados. The Hero contains the committed decorative photograph, page
+heading, supporting copy, and a link to `/produtos`. Serviço states the three
+buying facts the store actually honours — payment methods, Correios delivery
+by PAC or SEDEX, and the seven-day right to withdraw with a link to
+`/trocas-e-devolucoes` — and nothing the checkout does not do. Categorias links
+every root Category to `/produtos/<root-slug>` and includes its optional
+decorative picture. Each Product preview contains at most four shared Product
+cards and a link to its full catalogue view; an empty preview is omitted. The
+Category band is the one full-bleed block below the Hero: a muted ground
+carrying, inside the container, one root Category's square picture beside its
+name, links to its child Categories, and a link to `/produtos/<root-slug>`. No
+type sits on that picture. The band is omitted when no root Category has a
+picture; a root without children shows only its name and link.
 
 **Data flow.** The page uses `caller` throughout. It starts
-`categories.shop.roots()` and `products.shop.promotions()` together, then calls
+`categories.shop.roots()`, `categories.shop.largestRoot()` and
+`products.shop.promotions()` together, then calls
 `products.shop.bestSellers({ excludeProductIds })`,
 `products.shop.newest({ excludeProductIds })`, and
 `products.shop.topRated({ excludeProductIds })` in display order. Each later
 read excludes earlier Product ids before applying its limit, so sections remain
-unique and backfill. The four full views are
-`?promocao=1&ordenar=maior-desconto`, `?ordenar=mais-vendidos`,
-`?ordenar=recentes`, and `?ordenar=avaliados`. Nothing crosses the RSC boundary.
-The Hero uses a static `next/image` import with `preload`, explicit `sizes`, and
-empty alt text because it is the LCP element and its adjacent text carries the
-message.
+unique and backfill. `largestRoot()` returns the root Category that has a
+picture and the most active Products across its subtree, with its children
+sorted by `localeCompare(…, "pt-BR")`, or `null`. Its choice changes only on a
+Product or Category write, both of which already invalidate `/`. Serviço reads
+its facts from `lib/store.ts`, the same source `/sobre` renders. The four full
+views are `?promocao=1&ordenar=maior-desconto`, `?ordenar=mais-vendidos`,
+`?ordenar=recentes`, and `?ordenar=avaliados`. Nothing crosses the RSC
+boundary. The Hero uses a static `next/image` import with `preload`, explicit
+`sizes`, and empty alt text because it is the LCP element and its adjacent text
+carries the message.
 
 ### `/produtos`
 
@@ -466,7 +479,8 @@ stock, or Coupon writes.
 ### `/sobre`
 
 **Structure.** The page owns its heading, metadata, and authored store prose.
-**Data flow.** The route reads no data and crosses no RSC boundary.
+**Data flow.** Its buying facts come from `lib/store.ts`, the source the home
+Serviço block shares; there is no procedure or RSC crossing.
 
 ### `/contato`
 
