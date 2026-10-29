@@ -12,11 +12,12 @@ import { useTRPC } from "@/trpc/client";
  * Product changes what a shopper sees too. It reads blunt and behaves narrow:
  * `invalidateQueries` marks every products query stale but refetches only the
  * *active* ones, which on this page is the one list a mounted table observes.
+ * Returning that promise keeps the status cell pending until reconciliation.
  *
  * **No `onError`.** The `MutationCache` handler toasts a pt-BR sentence for
  * every failed mutation in the app, so a refused transition already speaks
- * (ADR-0013). Navigation is the call site's, and there is none here: the row
- * that fired this stays where it is.
+ * (ADR-0013). Navigation is the call site's; filtered rows leave when the
+ * confirmed list no longer includes them.
  */
 export const usePublishProduct = () => {
   const trpc = useTRPC();
@@ -25,8 +26,8 @@ export const usePublishProduct = () => {
   return useMutation(
     trpc.products.admin.publish.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries(trpc.products.pathFilter());
         toast.success("Produto publicado.");
+        return queryClient.invalidateQueries(trpc.products.pathFilter());
       },
     }),
   );

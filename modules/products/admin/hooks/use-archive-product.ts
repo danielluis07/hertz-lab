@@ -19,8 +19,8 @@ export const useArchiveProduct = () => {
   return useMutation(
     trpc.products.admin.archive.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries(trpc.products.pathFilter());
         toast.success("Produto arquivado.");
+        return queryClient.invalidateQueries(trpc.products.pathFilter());
       },
     }),
   );

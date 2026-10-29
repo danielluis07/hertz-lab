@@ -43,7 +43,7 @@ modules/products/
     form-values.ts    byId's aggregate as the form's defaultValues, and where an
                       Image's Variant index lands when that Variant is removed
     components/       9 files
-    hooks/            7 files
+    hooks/            8 files
 ```
 
 **No `types.ts`** — every type infers, from Zod or from `RouterOutput`.
@@ -446,7 +446,7 @@ Nine components, all in `modules/products/admin/components/`.
 | --- | --- | --- |
 | `product-table.tsx` | **client** | `TableShell`, `SortHeader`, `EmptyRow`, `PaginationNav`, `useSuspenseQuery` |
 | `product-table-skeleton.tsx` | server | `components/ui/skeleton` |
-| `product-row-actions.tsx` | **client** | `Button`, the publish/archive hooks |
+| `product-status-select.tsx` | **client** | `Select`, `Spinner`, `useProductStatus` |
 | `product-form.tsx` | client | shadcn `Field`, `useProductImages`, the three field groups below |
 | `product-create-form.tsx` | client | `product-form` |
 | `product-edit-form.tsx` | client | `product-form`, `useSuspenseQuery` on `byId` |
@@ -462,9 +462,16 @@ second export, because it knows this table's column count and widths.
 the only client component on a list page, and that the table is a server
 component. Neither holds on this surface.
 
-`product-row-actions.tsx` is a second client component, because publish and
-archive need an `onClick`. It is a leaf — a `<td>`'s worth of buttons receiving
-an `id` and a `status` — and every module with a per-row status action has one.
+`product-status-select.tsx` is an interactive leaf receiving an `id`, a product
+name for its accessible label, and a `status`. It replaces the old status badge
+and separate publish/archive buttons. Its compact trigger has a colored filled
+dot and offers only legal transitions, with the current value disabled in the
+menu. The actions column links to editing the Product.
+
+This cell is a scoped exception to the default admin optimism policy, described
+in `docs/WRITE-PATH.md`. It changes immediately, disables only its own select
+while saving, and restores the server value on failure. Filtered rows and
+counts reconcile after confirmation rather than being predicted in the browser.
 
 `product-table.tsx` is the third, and that one was a decision rather than a
 consequence: it reads its rows with `useSuspenseQuery` because ADR-0011 hydrates
@@ -503,10 +510,14 @@ out of the React Compiler.
 
 ## Hooks
 
-Seven, in `modules/products/admin/hooks/`. **Six** are one per write, named for
+Eight, in `modules/products/admin/hooks/`. **Six** are one per write, named for
 the verb: `use-create-product`, `use-update-product`, `use-publish-product`,
 `use-archive-product`, `use-create-image-upload` and
 `use-discard-image-upload`.
+
+`use-product-status` composes publishing and archiving with a row-local
+optimistic value. Both mutation hooks await invalidation so the cell's pending
+state spans reconciliation; error toasts remain owned by the global handler.
 
 `use-product-images` is the exception, and the exception is ADR-0018's. It owns
 the images field array and the Product rules over it — append, reorder, remove,
@@ -624,7 +635,8 @@ Worth stating, because the other eight will be tempted:
   the query layer, and `server/queries.ts` holds the two lookups `create` and
   `update` both ask — arguments in, rows out, and it arrived with the second
   caller rather than before one.
-- **No optimistic updates.** App-wide, ADR-0012's file.
+- **No optimistic list-cache writes.** The table's status select has a local
+  optimistic value; all other admin writes follow `docs/WRITE-PATH.md`'s default.
 - **No `reorder` procedure.** Arranging the images is a client-side array move,
   saved by the same submit as everything else; `position` is derived from the
   index at write time and never sent (ADR-0018).

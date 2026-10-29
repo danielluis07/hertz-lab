@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { EmptyRow, SortHeader, TableShell } from "@/components/data-table";
 import { PaginationNav } from "@/components/pagination-nav";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -13,20 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/date";
 import { formatRating } from "@/lib/utils/format";
 import { buildPageHref } from "@/lib/utils/pagination";
 import { buildSortHref } from "@/lib/utils/sort";
 import { s3KeyToUrl } from "@/lib/utils/url";
-import { ProductRowActions } from "@/modules/products/admin/components/product-row-actions";
+import { ProductStatusSelect } from "@/modules/products/admin/components/product-status-select";
 import type { ProductListInput } from "@/modules/products/admin/schemas";
 import {
   PRODUCT_SORT_DEFAULTS,
-  PRODUCT_STATUS_LABELS,
   PRODUCTS_PER_PAGE,
   type ProductSortField,
-  type ProductStatus,
 } from "@/modules/products/constants";
 import { useTRPC } from "@/trpc/client";
 
@@ -39,14 +37,6 @@ const COLUMN_COUNT = 10;
  * routes English parameters, so this is the schema's field name unchanged.
  */
 const PAGE_PARAM: keyof ProductListInput = "page";
-
-const STATUS_BADGE_CLASSES: Record<ProductStatus, string> = {
-  draft: "bg-muted text-muted-foreground",
-  active:
-    "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400",
-  archived:
-    "bg-amber-500/10 text-amber-700 dark:bg-amber-400/10 dark:text-amber-400",
-};
 
 /**
  * The catalog, one page at a time. The table owns its columns — a column spec
@@ -164,13 +154,11 @@ export function ProductTable({ input }: { input: ProductListInput }) {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                        STATUS_BADGE_CLASSES[product.status],
-                      )}>
-                      {PRODUCT_STATUS_LABELS[product.status]}
-                    </span>
+                    <ProductStatusSelect
+                      id={product.id}
+                      name={product.name}
+                      status={product.status}
+                    />
                   </TableCell>
                   <TableCell>{product.brandName}</TableCell>
                   <TableCell>{product.categoryName}</TableCell>
@@ -190,12 +178,12 @@ export function ProductTable({ input }: { input: ProductListInput }) {
                     {formatDate(product.createdAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {/* Two scalars, never the row: the actions need an id and
-                        a status to decide what they offer, and nothing else. */}
-                    <ProductRowActions
-                      id={product.id}
-                      status={product.status}
-                    />
+                    <Link
+                      href={`/admin/products/${product.id}`}
+                      className={buttonVariants({ variant: "ghost", size: "sm" })}
+                      aria-label={`Editar ${product.name}`}>
+                      Editar
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))
