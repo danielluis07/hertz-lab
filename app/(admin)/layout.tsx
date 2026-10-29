@@ -14,7 +14,7 @@ export default function AdminLayout({ children }: LayoutProps<"/">) {
     <ConfirmProvider>
       <SidebarProvider className="admin">
         <AdminSidebar />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <AdminHeader />
           <main className="flex-1 p-4">{children}</main>
         </SidebarInset>

@@ -41,6 +41,9 @@ export function ProductTableSkeleton() {
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            <TableHead className="w-16">
+              <span className="sr-only">Imagem</span>
+            </TableHead>
             {COLUMNS.map((column) => (
               <TableHead key={column.header}>{column.header}</TableHead>
             ))}
@@ -49,6 +52,9 @@ export function ProductTableSkeleton() {
         <TableBody>
           {Array.from({ length: ROWS }, (_, row) => (
             <TableRow key={row} className="hover:bg-transparent">
+              <TableCell>
+                <Skeleton className="size-10 rounded-md" />
+              </TableCell>
               {COLUMNS.map((column) => (
                 <TableCell key={column.header}>
                   <Skeleton className={cn("h-4", column.bar)} />
