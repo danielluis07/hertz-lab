@@ -98,7 +98,7 @@ direction, so `reviews` may reach into `products` and never the reverse.
 
 ## No optimistic updates
 
-**Admin surfaces do not use optimistic updates.** This is a decision, not an
+**Admin surfaces do not use optimistic updates by default.** This is a decision, not an
 omission, and "admin should feel snappier, add optimistic updates" is the
 plausible-sounding change that is not wanted.
 
@@ -115,6 +115,28 @@ and fails in a way no test will catch.
 Against that: an Admin editing a Product tolerates a spinner, and admin is a
 low-traffic internal surface. Revisit only if a specific surface demonstrates the
 need, and revisit it for that surface alone.
+
+### Exception: the Products table status select
+
+The status cell on `/admin/products` updates optimistically. It retains the
+neutral status label with a colored filled dot (gray for draft, green for active,
+red for archived), a transparent compact select trigger, and a border on hover
+or focus. Only the dot carries the status color.
+The select shows the current value and only legal destinations: publishing or
+archiving, never returning to draft. Existing server-side publication checks
+still apply; the table cannot determine image coverage.
+
+`use-product-status` keeps the optimistic value local to the cell with
+`useOptimistic` and an async transition. The cell is disabled with a spinner
+while saving; other rows remain usable. A failure ends the optimistic layer
+and restores the server value, while the global error toast explains the refusal.
+There is no list-cache snapshot to roll back over another Product's success.
+
+The publish/archive hooks return their invalidation promises so the optimistic
+layer remains until the list reconciles. Filtering, pagination and counts stay
+server-owned: changing status does not optimistically remove a row. A row that
+no longer matches the filter leaves when confirmed results arrive. Success
+toasts remain unchanged. Other admin writes retain the default policy.
 
 ## After the write
 
