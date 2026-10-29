@@ -92,13 +92,19 @@ A row carries:
 | `brandName` | join `brand` — indexed FK |
 | `categoryName` | join `category` — indexed FK |
 | `variantCount`, `totalStock` | aggregate over `product_variant` |
+| `coverS3Key` | left join to the first `product_image` by `position`, then `id`; null when absent |
 
-**No thumbnail and no price**, and both omissions are deliberate. A price is
+Each row starts with a 40px Cover thumbnail, matching the Categories table:
+rounded border, decorative alt text, and a muted square when no image exists.
+The Cover follows the storefront's ordering and changes when images are
+reordered. The image subquery selects one row per Product before joining, so
+extra images cannot multiply Variant counts or stock. A left join keeps
+imageless Products visible in the admin.
+
+**No price.** A price is
 ambiguous under ADR-0001 — *which* Variant's? — which is the same reason
 `docs/READ-PATH.md` refuses price as a sort key; a column an Admin cannot sort
-by, showing a range, is a worse surface than no column. A thumbnail costs a
-lateral join per row for decoration on a surface whose users know their own
-catalog.
+by, showing a range, is a worse surface than no column.
 
 `search` runs against `product_search_idx`, the GIN index over the Portuguese
 `tsvector`, through `plainto_tsquery` — so whatever an Admin typed is a query

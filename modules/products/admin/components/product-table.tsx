@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/utils/date";
 import { formatRating } from "@/lib/utils/format";
 import { buildPageHref } from "@/lib/utils/pagination";
 import { buildSortHref } from "@/lib/utils/sort";
+import { s3KeyToUrl } from "@/lib/utils/url";
 import { ProductRowActions } from "@/modules/products/admin/components/product-row-actions";
 import type { ProductListInput } from "@/modules/products/admin/schemas";
 import {
@@ -30,7 +31,7 @@ import {
 import { useTRPC } from "@/trpc/client";
 
 /** Kept beside the header row it counts: `EmptyRow` has to span the table. */
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
 
 /**
  * Typed as a key of the list input, so a typo stops compiling instead of
@@ -81,6 +82,9 @@ export function ProductTable({ input }: { input: ProductListInput }) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              <TableHead className="w-16">
+                <span className="sr-only">Imagem</span>
+              </TableHead>
               <SortHeader
                 href={sortHref("name")}
                 active={input.sortBy === "name"}
@@ -133,6 +137,22 @@ export function ProductTable({ input }: { input: ProductListInput }) {
             ) : (
               data.items.map((product) => (
                 <TableRow key={product.id}>
+                  <TableCell>
+                    {product.coverS3Key ? (
+                      // Admin thumbnails follow Categories: no optimizer, and
+                      // decorative alt text beside the Product's name.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s3KeyToUrl(product.coverS3Key)}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="bg-muted size-10 min-w-10 rounded-md border object-cover"
+                      />
+                    ) : (
+                      <div className="bg-muted size-10 rounded-md border" />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/admin/products/${product.id}`}

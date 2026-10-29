@@ -59,6 +59,20 @@ const SORT_COLUMNS = {
   createdAt: product.createdAt,
 } satisfies Record<ProductSortField, PgColumn>;
 
+/** One Cover per Product, using the storefront's position and id ordering. */
+const cover = db
+  .selectDistinctOn([productImage.productId], {
+    productId: productImage.productId,
+    s3Key: productImage.s3Key,
+  })
+  .from(productImage)
+  .orderBy(
+    productImage.productId,
+    asc(productImage.position),
+    asc(productImage.id),
+  )
+  .as("cover");
+
 /** What both transitions take, and all they take. */
 const transitionInput = z.object({ id: z.string() });
 
@@ -287,6 +301,7 @@ export const adminRouter = createTRPCRouter({
           createdAt: product.createdAt,
           brandName: brand.name,
           categoryName: category.name,
+          coverS3Key: cover.s3Key,
           // Both FKs are notNull with `onDelete: "restrict"`, so an inner join
           // can never drop a Product — which is also why `total` below can
           // count the same `where` without repeating them.
@@ -297,8 +312,10 @@ export const adminRouter = createTRPCRouter({
         .innerJoin(brand, eq(brand.id, product.brandId))
         .innerJoin(category, eq(category.id, product.categoryId))
         .leftJoin(productVariant, eq(productVariant.productId, product.id))
+        // Keep imageless Products; one Cover cannot multiply Variant totals.
+        .leftJoin(cover, eq(cover.productId, product.id))
         .where(where)
-        .groupBy(product.id, brand.id, category.id)
+        .groupBy(product.id, brand.id, category.id, cover.s3Key)
         .orderBy(...orderBy)
         .limit(PRODUCTS_PER_PAGE)
         .offset((input.page - 1) * PRODUCTS_PER_PAGE);
